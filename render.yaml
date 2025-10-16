@@ -4,7 +4,7 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     region: oregon
-    plan: standard
+    plan: free
     envVars:
       - key: NODE_ENV
         value: production
@@ -82,7 +82,7 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     region: oregon
-    plan: standard
+    plan: free
     envVars:
       - key: PORT
         value: "9000"
@@ -94,7 +94,7 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     region: oregon
-    plan: standard
+    plan: free
     envVars:
       - key: PORT
         value: "8001"
@@ -105,7 +105,7 @@ services:
     name: whale-db
     runtime: postgresql
     region: oregon
-    plan: starter
+    plan: free
     initialData: ./backend/database/schema.sql
     envVars:
       - key: POSTGRES_DB
@@ -117,14 +117,14 @@ services:
     name: whale-redis
     runtime: redis
     region: oregon
-    plan: starter
+    plan: free
     maxmemoryPolicy: allkeys-lru
 
 databases:
   - name: whale-db
     engine: postgresql
     version: "15"
-    plan: starter
+    plan: free
     region: oregon
     initialData: ./backend/database/schema.sql
 
