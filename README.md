@@ -203,5 +203,5 @@ GitHub Issues: https://github.com/Uchida16104/WHALE/issues
 
 ---
 
-**最後更新**: 2025年1月
+**最後更新**: 2025年10月
 **バージョン**: 1.0.0
