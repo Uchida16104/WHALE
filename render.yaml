@@ -1,0 +1,152 @@
+services:
+  - type: web
+    name: whale-app
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    region: oregon
+    plan: standard
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_URL
+        value: https://whale.onrender.com
+      - key: REACT_APP_API_URL
+        value: https://whale.onrender.com/api
+      - key: LOG_CHANNEL
+        value: stack
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DB_HOST
+        fromDatabase:
+          name: whale-db
+          property: host
+      - key: DB_PORT
+        value: "5432"
+      - key: DB_DATABASE
+        fromDatabase:
+          name: whale-db
+          property: database
+      - key: DB_USERNAME
+        fromDatabase:
+          name: whale-db
+          property: username
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: whale-db
+          property: password
+      - key: REDIS_HOST
+        fromService:
+          name: whale-redis
+          property: host
+      - key: REDIS_PASSWORD
+        fromService:
+          name: whale-redis
+          property: password
+      - key: REDIS_PORT
+        value: "6379"
+      - key: QUEUE_CONNECTION
+        value: redis
+      - key: SESSION_DRIVER
+        value: redis
+      - key: CACHE_DRIVER
+        value: redis
+      - key: SANCTUM_STATEFUL_DOMAINS
+        value: whale.onrender.com
+      - key: SESSION_DOMAIN
+        value: .whale.onrender.com
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://whale.onrender.com
+      - key: JWT_SECRET
+        generate:
+          type: openssl
+          command: openssl rand -base64 32
+      - key: ENCRYPTION_KEY
+        generate:
+          type: openssl
+          command: openssl rand -base64 32
+    healthCheckPath: /health
+    routes:
+      - path: /
+        destination: whale-app
+      - path: /api
+        destination: whale-api
+      - path: /analysis
+        destination: whale-analysis
+
+  - type: web
+    name: whale-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    region: oregon
+    plan: standard
+    envVars:
+      - key: PORT
+        value: "9000"
+      - key: NODE_ENV
+        value: production
+
+  - type: web
+    name: whale-analysis
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    region: oregon
+    plan: standard
+    envVars:
+      - key: PORT
+        value: "8001"
+      - key: PYTHONUNBUFFERED
+        value: "1"
+
+  - type: pserv
+    name: whale-db
+    runtime: postgresql
+    region: oregon
+    plan: starter
+    initialData: ./backend/database/schema.sql
+    envVars:
+      - key: POSTGRES_DB
+        value: whale_db
+      - key: POSTGRES_USER
+        value: whale_user
+
+  - type: redis
+    name: whale-redis
+    runtime: redis
+    region: oregon
+    plan: starter
+    maxmemoryPolicy: allkeys-lru
+
+databases:
+  - name: whale-db
+    engine: postgresql
+    version: "15"
+    plan: starter
+    region: oregon
+    initialData: ./backend/database/schema.sql
+
+staticSites:
+  - name: whale-frontend
+    buildCommand: npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: REACT_APP_API_URL
+        value: https://whale.onrender.com/api
+
+cron:
+  - name: backup-database
+    schedule: "0 2 * * *"
+    command: pg_dump $DATABASE_URL | gzip > /backups/whale_backup_$(date +%Y%m%d_%H%M%S).sql.gz
+    
+  - name: cleanup-old-logs
+    schedule: "0 3 * * 0"
+    command: find /app/logs -name "*.log" -mtime +30 -delete
+    
+  - name: session-cleanup
+    schedule: "0 */6 * * *"
+    command: php /app/backend/laravel/artisan session:cleanup
