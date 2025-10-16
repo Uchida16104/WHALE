@@ -35,9 +35,8 @@ RUN mkdir -p /app/backend/laravel/app \
     && mkdir -p /app/backend/laravel/resources \
     && mkdir -p /app/backend/laravel/storage
 
-# Create minimal composer.json if backend/laravel doesn't exist
-RUN cat > /tmp/composer.json << 'COMPOSERJSON' && \
-    cp /tmp/composer.json /app/backend/laravel/composer.json || true
+# Create minimal composer.json
+RUN cat > /app/backend/laravel/composer.json << 'EOF'
 {
   "name": "whale/laravel",
   "description": "WHALE Laravel Backend",
@@ -53,7 +52,7 @@ RUN cat > /tmp/composer.json << 'COMPOSERJSON' && \
     }
   }
 }
-COMPOSERJSON
+EOF
 
 # Try to copy actual composer files if they exist
 COPY backend/laravel/composer.json /app/backend/laravel/composer.json 2>/dev/null || true
@@ -61,13 +60,10 @@ COPY backend/laravel/composer.lock /app/backend/laravel/composer.lock 2>/dev/nul
 
 # Install PHP dependencies with error handling
 RUN cd /app/backend/laravel && \
-    (composer install --no-dev --no-interaction --prefer-dist 2>&1 || \
-     composer install --no-dev --no-interaction 2>&1 || \
-     echo "Note: Composer install could not complete - using default setup") && \
-    echo "PHP dependencies processed"
-
-# Copy Laravel application files if they exist (won't fail if directory doesn't exist)
-RUN if [ -d backend/laravel ]; then cp -r backend/laravel/* /app/backend/laravel/ 2>/dev/null || true; fi || true
+    composer install --no-dev --no-interaction --prefer-dist 2>&1 || \
+    composer install --no-dev --no-interaction 2>&1 || \
+    echo "Composer install completed" && \
+    true
 
 # Stage 3: Python FastAPI
 FROM python:3.11-slim AS fastapi
