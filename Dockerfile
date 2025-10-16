@@ -67,11 +67,7 @@ COPY backend/fastapi/requirements.txt /app/backend/fastapi/requirements.txt 2>/d
 RUN pip install --no-cache-dir -r requirements.txt 2>/dev/null || \
     echo "Python dependencies installed"
 
-# Copy FastAPI application files if they exist
-COPY backend/fastapi/ /app/backend/fastapi/ 2>/dev/null || true
 
-# Create necessary directories
-RUN mkdir -p /app/backend/fastapi/app
 
 # Stage 4: C++ Web Toolkit (Data Processing)
 FROM ubuntu:22.04 AS cpp-builder
