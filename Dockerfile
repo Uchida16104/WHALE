@@ -23,7 +23,7 @@ WORKDIR /app/fastapi
 RUN apt-get update && apt-get install -y gcc libpq-dev && rm -rf /var/lib/apt/lists/*
 COPY backend/fastapi/requirements.txt . 2>/dev/null || echo -e "fastapi==0.104.1\nuvicorn==0.24.0\npydantic==2.4.0" > requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt 2>/dev/null || true
-COPY backend/fastapi/ . 2>/dev/null || echo "from fastapi import FastAPI\napp = FastAPI()" > main.py
+COPY backend/fastapi/ . 2>/dev/null || echo 'from fastapi import FastAPI\napp = FastAPI()' > main.py
 
 FROM ubuntu:22.04
 RUN apt-get update && apt-get install -y \
