@@ -22,21 +22,21 @@ services:
         value: pgsql
       - key: DB_HOST
         fromDatabase:
-          name: whale-db
+          name: whaledb
           property: host
       - key: DB_PORT
         value: "5432"
       - key: DB_DATABASE
         fromDatabase:
-          name: whale-db
+          name: whaledb
           property: database
       - key: DB_USERNAME
         fromDatabase:
-          name: whale-db
+          name: whaledb
           property: username
       - key: DB_PASSWORD
         fromDatabase:
-          name: whale-db
+          name: whaledb
           property: password
       - key: REDIS_HOST
         fromService:
