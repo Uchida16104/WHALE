@@ -3,6 +3,8 @@
 
 # Stage 1: Frontend Build
 FROM node:18-alpine AS frontend-builder
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
 WORKDIR /app/frontend
 RUN mkdir -p src build
 RUN echo '{"scripts":{"build":"echo Frontend build"}}' > package.json
@@ -10,6 +12,8 @@ RUN npm run build 2>/dev/null || mkdir -p build
 
 # Stage 2: Laravel Backend
 FROM php:8.2-fpm-alpine AS laravel-builder
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
 WORKDIR /app/backend/laravel
 RUN apk add --no-cache libpq-dev curl git
 RUN docker-php-ext-install pdo pdo_pgsql
@@ -20,6 +24,8 @@ RUN composer install --no-dev --no-interaction 2>/dev/null || echo "Composer rea
 
 # Stage 3: FastAPI Backend
 FROM python:3.11-slim AS fastapi-builder
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
 WORKDIR /app/backend/fastapi
 RUN apt-get update && apt-get install -y gcc libpq-dev && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir fastapi uvicorn pydantic 2>/dev/null || true
@@ -27,6 +33,8 @@ RUN echo 'from fastapi import FastAPI\napp = FastAPI()' > main.py
 
 # Stage 4: Final Production Image
 FROM ubuntu:22.04
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
 RUN apt-get update && apt-get install -y \
     nginx supervisor postgresql-client curl ca-certificates \
     python3.11 python3-pip libpq5 \
