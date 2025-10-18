@@ -1,2 +1,2 @@
-sudo apt-get update
-sudo apt-get install -y gfortran build-essential libatlas-base-dev
+apt-get update
+apt-get install -y gfortran build-essential libatlas-base-dev
