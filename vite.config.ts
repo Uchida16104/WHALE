@@ -9,4 +9,12 @@ export default defineConfig({
     emptyOutDir: true,
   },
   plugins: [react()],
+  server: {
+    host: true,
+  },
+  preview: {
+    host: true,
+    port: Number(process.env.PORT) || 4173,
+    allowedHosts: ['whale-reacts.onrender.com'],
+  },
 });
