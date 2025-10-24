@@ -6,7 +6,7 @@
 
 // グローバル設定
 window.WHALE = window.WHALE || {
-    API_URL: 'https://whale-backend.onrender.com',
+    API_URL: 'https://whale-backend-84p5.onrender.com',
     GITHUB_PAGES_URL: 'https://uchida16104.github.io/WHALE',
     VERSION: '2.0.0',
     DEBUG: false
