@@ -1,4 +1,4 @@
-# WHALE - 福祉・医療・行政・介護・教育統合システム v2.0
+# WHALE - 福祉・医療・行政・介護・教育統合システム
 
 **Welfare, Healthcare, Administration, Long-term care, and Education**
 
