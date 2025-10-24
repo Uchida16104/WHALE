@@ -22,7 +22,7 @@ jobs:
       - name: Install Backend Dependencies
         run: |
           cd backend
-          npm ci
+          npm install
 
       - name: Lint Backend
         run: |
@@ -77,7 +77,7 @@ jobs:
       - name: Build Backend
         run: |
           cd backend
-          npm ci
+          npm install
           echo "✅ Backend build successful"
 
       - name: Test Frontend Load
