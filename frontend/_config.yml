@@ -1,21 +1,25 @@
-# GitHub Pages Configuration
-
 title: WHALE
 description: 福祉・医療・行政・介護・教育統合システム
-theme: null
+url: "https://uchida16104.github.io"
 baseurl: "/WHALE"
-url: "https://your-username.github.io"
 
-# Build settings
+# GitHub Pages設定
+theme: null
 markdown: kramdown
 plugins:
   - jekyll-sitemap
   - jekyll-seo-tag
 
-# Exclude from build
+# 除外ファイル
 exclude:
   - node_modules
   - package.json
   - package-lock.json
   - README.md
   - .gitignore
+  - .git
+
+# 静的ファイル処理
+include:
+  - _config.yml
+  - .nojekyll
