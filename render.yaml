@@ -16,7 +16,7 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: CORS_ORIGIN
-        value: https://uchida16104.github.io
+        value: https://uchida16104.github.io/WHALE
     headers:
       - path: /*
         name: X-Frame-Options
