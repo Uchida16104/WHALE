@@ -141,7 +141,7 @@ git push -u origin main
 
 ```javascript
 window.WHALE = {
-    API_URL: 'https://whale-backend.onrender.com', // ← Render.comのURL
+    API_URL: 'https://whale-backend-84p5.onrender.com', // ← Render.comのURL
     GITHUB_PAGES_URL: 'https://YOUR_USERNAME.github.io/WHALE',
     VERSION: '2.0.0'
 };
