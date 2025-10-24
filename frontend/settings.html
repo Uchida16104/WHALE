@@ -1,0 +1,399 @@
+<div class="container mx-auto px-4 py-8">
+    <div class="max-w-4xl mx-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-gray-800">設定</h2>
+            <button onclick="loadPage('dashboard.html')" class="text-blue-600 hover:text-blue-800 font-medium">
+                ← ダッシュボードに戻る
+            </button>
+        </div>
+
+        <!-- ユーザー情報 -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">ユーザー情報</h3>
+            <div class="space-y-4" id="user-info">
+                <div class="flex items-center space-x-4">
+                    <div class="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center text-3xl">
+                        👤
+                    </div>
+                    <div>
+                        <div class="font-semibold text-lg" id="user-name-display"></div>
+                        <div class="text-sm text-gray-600" id="user-role-display"></div>
+                        <div class="text-xs text-gray-500" id="user-org-display"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- アプリケーション設定 -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">アプリケーション設定</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">テーマ</label>
+                    <select id="theme-select" class="w-full px-4 py-2 border rounded-lg">
+                        <option value="light">ライト</option>
+                        <option value="dark">ダーク（準備中）</option>
+                        <option value="auto">自動</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">文字サイズ</label>
+                    <select id="font-size-select" class="w-full px-4 py-2 border rounded-lg">
+                        <option value="small">小</option>
+                        <option value="medium">中</option>
+                        <option value="large">大</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">配色</label>
+                    <select id="color-scheme-select" class="w-full px-4 py-2 border rounded-lg">
+                        <option value="default">デフォルト</option>
+                        <option value="protanopia">1型色覚（赤色盲）対応</option>
+                        <option value="deuteranopia">2型色覚（緑色盲）対応</option>
+                        <option value="tritanopia">3型色覚（青色盲）対応</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">言語</label>
+                    <select id="language-select" class="w-full px-4 py-2 border rounded-lg">
+                        <option value="ja">日本語</option>
+                        <option value="en">English</option>
+                        <option value="zh">中文</option>
+                        <option value="ko">한국어</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- データ管理 -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">データ管理</h3>
+            <div class="space-y-4">
+                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div>
+                        <div class="font-medium">データバックアップ</div>
+                        <div class="text-sm text-gray-600">全データをJSONファイルとしてバックアップ</div>
+                    </div>
+                    <button onclick="backupData()" 
+                            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition">
+                        バックアップ
+                    </button>
+                </div>
+                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div>
+                        <div class="font-medium">データ復元</div>
+                        <div class="text-sm text-gray-600">バックアップファイルからデータを復元</div>
+                    </div>
+                    <label class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition cursor-pointer">
+                        復元
+                        <input type="file" id="restore-file" accept=".json" class="hidden" onchange="restoreData(this)">
+                    </label>
+                </div>
+                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div>
+                        <div class="font-medium">古いデータ削除</div>
+                        <div class="text-sm text-gray-600">90日以前の記録を削除してストレージを節約</div>
+                    </div>
+                    <button onclick="cleanOldData()" 
+                            class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg transition">
+                        削除
+                    </button>
+                </div>
+                <div class="flex items-center justify-between p-4 bg-red-50 rounded-lg border border-red-200">
+                    <div>
+                        <div class="font-medium text-red-700">全データ削除</div>
+                        <div class="text-sm text-red-600">すべてのデータを完全に削除（復元不可）</div>
+                    </div>
+                    <button onclick="resetAllData()" 
+                            class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition">
+                        リセット
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ストレージ情報 -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">ストレージ情報</h3>
+            <div id="storage-info" class="space-y-3">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-600">LocalStorage使用量</span>
+                    <span class="font-semibold" id="local-storage-size">計算中...</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-600">IndexedDB使用量</span>
+                    <span class="font-semibold" id="indexed-db-size">計算中...</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2 mt-2">
+                    <div id="storage-progress" class="bg-blue-600 h-2 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- パスワード変更 -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">パスワード変更</h3>
+            <form id="password-form" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">現在のパスワード</label>
+                    <input type="password" name="currentPassword" required
+                           class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">新しいパスワード</label>
+                    <input type="password" name="newPassword" required minlength="8"
+                           class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">新しいパスワード（確認）</label>
+                    <input type="password" name="confirmPassword" required minlength="8"
+                           class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                <button type="submit" 
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition">
+                    パスワードを変更
+                </button>
+            </form>
+        </div>
+
+        <!-- システム情報 -->
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">システム情報</h3>
+            <div class="space-y-2 text-sm">
+                <div class="flex justify-between">
+                    <span class="text-gray-600">バージョン</span>
+                    <span class="font-medium" id="system-version"></span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">ブラウザ</span>
+                    <span class="font-medium" id="browser-info"></span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">オンライン状態</span>
+                    <span class="font-medium" id="online-status"></span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">最終ログイン</span>
+                    <span class="font-medium" id="last-login"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function loadPage(url) {
+        htmx.ajax('GET', url, { target: '#main-content', swap: 'innerHTML', pushUrl: true });
+    }
+
+    // 初期化
+    (async function initSettings() {
+        try {
+            const user = await window.WhaleStorage.getCurrentUser();
+            if (!user) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            const org = await window.WhaleStorage.getOrganization(user.organizationId);
+
+            // ユーザー情報表示
+            document.getElementById('user-name-display').textContent = user.name;
+            const roleMap = { admin: '管理者', staff: '職員', user: '利用者' };
+            document.getElementById('user-role-display').textContent = roleMap[user.role] || user.role;
+            document.getElementById('user-org-display').textContent = org.name;
+
+            // 設定読み込み
+            loadSettings();
+
+            // ストレージ情報更新
+            updateStorageInfo();
+
+            // システム情報更新
+            updateSystemInfo();
+
+            // パスワード変更フォーム
+            setupPasswordForm();
+
+        } catch (error) {
+            console.error('Settings initialization error:', error);
+        }
+    })();
+
+    function loadSettings() {
+        const settings = window.WhaleStorage.getLocal('settings') || {};
+        
+        document.getElementById('theme-select').value = settings.theme || 'light';
+        document.getElementById('font-size-select').value = settings.fontSize || 'medium';
+        document.getElementById('color-scheme-select').value = settings.colorScheme || 'default';
+        document.getElementById('language-select').value = settings.language || 'ja';
+
+        // 変更イベント
+        ['theme-select', 'font-size-select', 'color-scheme-select', 'language-select'].forEach(id => {
+            document.getElementById(id).addEventListener('change', saveSettings);
+        });
+    }
+
+    function saveSettings() {
+        const settings = {
+            theme: document.getElementById('theme-select').value,
+            fontSize: document.getElementById('font-size-select').value,
+            colorScheme: document.getElementById('color-scheme-select').value,
+            language: document.getElementById('language-select').value
+        };
+
+        window.WhaleStorage.setLocal('settings', settings);
+        window.showToast('設定を保存しました', 'success');
+    }
+
+    async function updateStorageInfo() {
+        try {
+            const storageInfo = window.WhaleStorage.getStorageInfo();
+            
+            document.getElementById('local-storage-size').textContent = 
+                storageInfo.localStorage.usedMB + ' MB';
+
+            const quota = await window.WhaleUtils.checkStorageQuota();
+            if (quota) {
+                document.getElementById('indexed-db-size').textContent = 
+                    (quota.usage / 1024 / 1024).toFixed(2) + ' MB';
+                document.getElementById('storage-progress').style.width = quota.usagePercent + '%';
+            }
+        } catch (error) {
+            console.error('Storage info error:', error);
+        }
+    }
+
+    function updateSystemInfo() {
+        document.getElementById('system-version').textContent = window.WHALE.VERSION;
+        
+        const browserInfo = window.WhaleUtils.getBrowserInfo();
+        document.getElementById('browser-info').textContent = browserInfo.browser;
+        
+        document.getElementById('online-status').textContent = 
+            navigator.onLine ? '🟢 オンライン' : '🔴 オフライン';
+        
+        const sessionStart = window.WhaleStorage.getLocal('sessionStart');
+        if (sessionStart) {
+            document.getElementById('last-login').textContent = 
+                window.WhaleUtils.getRelativeTime(sessionStart);
+        }
+    }
+
+    async function backupData() {
+        try {
+            window.WhaleUtils.showLoading('バックアップ中...');
+            await window.WhaleStorage.backup();
+            window.WhaleUtils.hideLoading();
+            window.showToast('バックアップを作成しました', 'success');
+        } catch (error) {
+            window.WhaleUtils.hideLoading();
+            console.error('Backup error:', error);
+            window.showToast('バックアップエラー', 'error');
+        }
+    }
+
+    async function restoreData(input) {
+        try {
+            const file = input.files[0];
+            if (!file) return;
+
+            if (!confirm('データを復元しますか？現在のデータは上書きされます。')) {
+                input.value = '';
+                return;
+            }
+
+            window.WhaleUtils.showLoading('復元中...');
+            const result = await window.WhaleStorage.import(file);
+            window.WhaleUtils.hideLoading();
+
+            window.showToast(
+                `${result.imported}/${result.total} 件のデータを復元しました`,
+                'success'
+            );
+            
+            setTimeout(() => location.reload(), 2000);
+        } catch (error) {
+            window.WhaleUtils.hideLoading();
+            console.error('Restore error:', error);
+            window.showToast('復元エラー: ' + error.message, 'error');
+        } finally {
+            input.value = '';
+        }
+    }
+
+    async function cleanOldData() {
+        try {
+            if (!confirm('90日以前のデータを削除しますか？')) return;
+
+            window.WhaleUtils.showLoading('削除中...');
+            const result = await window.WhaleStorage.cleanOldData(90);
+            window.WhaleUtils.hideLoading();
+
+            window.showToast(`${result.deleted} 件のデータを削除しました`, 'success');
+            updateStorageInfo();
+        } catch (error) {
+            window.WhaleUtils.hideLoading();
+            console.error('Clean error:', error);
+            window.showToast('削除エラー', 'error');
+        }
+    }
+
+    async function resetAllData() {
+        try {
+            if (!confirm('本当に全データを削除しますか？この操作は取り消せません。')) return;
+            if (!confirm('最終確認: すべてのデータが完全に削除されます。よろしいですか？')) return;
+
+            window.WhaleUtils.showLoading('リセット中...');
+            await window.WhaleStorage.reset();
+            window.WhaleUtils.hideLoading();
+
+            window.showToast('データをリセットしました', 'success');
+            setTimeout(() => {
+                window.location.href = 'login.html';
+            }, 2000);
+        } catch (error) {
+            window.WhaleUtils.hideLoading();
+            console.error('Reset error:', error);
+            window.showToast('リセットエラー', 'error');
+        }
+    }
+
+    function setupPasswordForm() {
+        const form = document.getElementById('password-form');
+        
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const formData = new FormData(form);
+            const currentPassword = formData.get('currentPassword');
+            const newPassword = formData.get('newPassword');
+            const confirmPassword = formData.get('confirmPassword');
+
+            if (newPassword !== confirmPassword) {
+                window.showToast('新しいパスワードが一致しません', 'error');
+                return;
+            }
+
+            try {
+                await window.WhaleAuth.changePassword(currentPassword, newPassword);
+                window.showToast('パスワードを変更しました', 'success');
+                form.reset();
+            } catch (error) {
+                console.error('Password change error:', error);
+                window.showToast(error.message || 'パスワード変更エラー', 'error');
+            }
+        });
+    }
+
+    // オンライン状態監視
+    window.addEventListener('online', () => {
+        document.getElementById('online-status').textContent = '🟢 オンライン';
+        window.showToast('オンラインに復帰しました', 'info');
+    });
+
+    window.addEventListener('offline', () => {
+        document.getElementById('online-status').textContent = '🔴 オフライン';
+        window.showToast('オフラインモードです', 'warning');
+    });
+</script>
