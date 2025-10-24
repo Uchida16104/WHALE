@@ -7,6 +7,10 @@
   "background_color": "#ffffff",
   "theme_color": "#2563eb",
   "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "ja",
+  "dir": "ltr",
+  "categories": ["healthcare", "business", "productivity"],
   "icons": [
     {
       "src": "/assets/icon-72.png",
@@ -57,19 +61,24 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["healthcare", "business", "productivity"],
   "screenshots": [
     {
       "src": "/assets/screenshot-1.png",
       "sizes": "1280x720",
       "type": "image/png",
       "label": "ダッシュボード"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "日々の記録",
+      "url": "/daily-record.html",
+      "icons": [{ "src": "/assets/icon-96.png", "sizes": "96x96" }]
     },
     {
-      "src": "/assets/screenshot-2.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "label": "日々の記録"
+      "name": "レポート",
+      "url": "/reports.html",
+      "icons": [{ "src": "/assets/icon-96.png", "sizes": "96x96" }]
     }
   ]
 }
