@@ -1,0 +1,189 @@
+<div class="container mx-auto px-4 py-8">
+    <div class="max-w-6xl mx-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-gray-800">出席管理</h2>
+            <button onclick="loadPage('dashboard.html')" class="text-blue-600 hover:text-blue-800 font-medium">
+                ← ダッシュボードに戻る
+            </button>
+        </div>
+
+        <!-- 日付選択 -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <div class="flex items-center space-x-4">
+                <button onclick="changeDate(-1)" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition">
+                    ← 前日
+                </button>
+                <input type="date" id="attendance-date" class="px-4 py-2 border rounded-lg" onchange="loadAttendance()">
+                <button onclick="changeDate(1)" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition">
+                    翌日 →
+                </button>
+                <button onclick="setToday()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition">
+                    今日
+                </button>
+            </div>
+        </div>
+
+        <!-- 出席リスト -->
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-semibold text-gray-800">出席状況</h3>
+                <div class="text-sm text-gray-600">
+                    出席: <span id="present-count" class="font-semibold text-green-600">0</span> / 
+                    合計: <span id="total-count" class="font-semibold">0</span>
+                </div>
+            </div>
+            
+            <div id="attendance-list" class="space-y-3">
+                <div class="text-center py-8 text-gray-500">読み込み中...</div>
+            </div>
+
+            <div class="mt-6">
+                <button onclick="saveAttendance()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition">
+                    保存する
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let attendanceData = {};
+    let currentDate = new Date();
+
+    (async function initAttendance() {
+        const currentUser = await window.WhaleStorage.getCurrentUser();
+        if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'staff')) {
+            window.showToast('権限がありません', 'error');
+            loadPage('dashboard.html');
+            return;
+        }
+
+        setToday();
+        await loadAttendance();
+    })();
+
+    function setToday() {
+        currentDate = new Date();
+        document.getElementById('attendance-date').valueAsDate = currentDate;
+        loadAttendance();
+    }
+
+    function changeDate(days) {
+        currentDate.setDate(currentDate.getDate() + days);
+        document.getElementById('attendance-date').valueAsDate = currentDate;
+        loadAttendance();
+    }
+
+    async function loadAttendance() {
+        try {
+            const dateInput = document.getElementById('attendance-date');
+            currentDate = dateInput.valueAsDate || new Date();
+
+            const currentUser = await window.WhaleStorage.getCurrentUser();
+            const users = await window.WhaleStorage.findByType('user', {
+                selector: { type: 'user', organizationId: currentUser.organizationId, role: 'user' }
+            });
+
+            const dateStr = currentDate.toISOString().split('T')[0];
+            const records = await window.WhaleStorage.findByDateRange('attendance_record', dateStr, dateStr);
+
+            attendanceData = {};
+            users.forEach(user => {
+                const record = records.find(r => r.userId === user._id);
+                attendanceData[user._id] = {
+                    user: user,
+                    present: record ? record.present : false,
+                    arrivalTime: record ? record.arrivalTime : '',
+                    departureTime: record ? record.departureTime : '',
+                    notes: record ? record.notes : ''
+                };
+            });
+
+            displayAttendance();
+        } catch (error) {
+            console.error('Load attendance error:', error);
+            window.showToast('出席データの読み込みに失敗しました', 'error');
+        }
+    }
+
+    function displayAttendance() {
+        const container = document.getElementById('attendance-list');
+        const users = Object.values(attendanceData);
+
+        if (users.length === 0) {
+            container.innerHTML = '<div class="text-center py-8 text-gray-500">利用者が登録されていません</div>';
+            return;
+        }
+
+        const presentCount = users.filter(u => u.present).length;
+        document.getElementById('present-count').textContent = presentCount;
+        document.getElementById('total-count').textContent = users.length;
+
+        container.innerHTML = users.map(data => `
+            <div class="border rounded-lg p-4 hover:bg-gray-50 transition">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-4">
+                        <label class="flex items-center cursor-pointer">
+                            <input type="checkbox" 
+                                   data-user-id="${data.user._id}"
+                                   ${data.present ? 'checked' : ''}
+                                   onchange="togglePresence('${data.user._id}')"
+                                   class="w-6 h-6 text-blue-600 rounded">
+                            <span class="ml-3 font-medium text-gray-900">${data.user.name}</span>
+                        </label>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <input type="time" 
+                               placeholder="到着"
+                               value="${data.arrivalTime || ''}"
+                               onchange="updateTime('${data.user._id}', 'arrival', this.value)"
+                               class="px-3 py-1 border rounded text-sm">
+                        <input type="time" 
+                               placeholder="退出"
+                               value="${data.departureTime || ''}"
+                               onchange="updateTime('${data.user._id}', 'departure', this.value)"
+                               class="px-3 py-1 border rounded text-sm">
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function togglePresence(userId) {
+        attendanceData[userId].present = !attendanceData[userId].present;
+        displayAttendance();
+    }
+
+    function updateTime(userId, type, value) {
+        if (type === 'arrival') {
+            attendanceData[userId].arrivalTime = value;
+        } else {
+            attendanceData[userId].departureTime = value;
+        }
+    }
+
+    async function saveAttendance() {
+        try {
+            const currentUser = await window.WhaleStorage.getCurrentUser();
+            const dateStr = currentDate.toISOString().split('T')[0];
+
+            for (const userId in attendanceData) {
+                const data = attendanceData[userId];
+                await window.WhaleStorage.save('attendance_record', {
+                    userId: userId,
+                    organizationId: currentUser.organizationId,
+                    attendanceDate: dateStr,
+                    present: data.present,
+                    arrivalTime: data.arrivalTime,
+                    departureTime: data.departureTime,
+                    notes: data.notes
+                });
+            }
+
+            window.showToast('出席データを保存しました', 'success');
+        } catch (error) {
+            console.error('Save attendance error:', error);
+            window.showToast('保存に失敗しました', 'error');
+        }
+    }
+</script>
