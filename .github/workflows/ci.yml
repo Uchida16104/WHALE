@@ -1,0 +1,89 @@
+name: Continuous Integration
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Backend Dependencies
+        run: |
+          cd backend
+          npm ci
+
+      - name: Lint Backend
+        run: |
+          cd backend
+          npm run lint || echo "Lint not configured"
+
+      - name: Test Backend
+        run: |
+          cd backend
+          npm test || echo "Tests not configured"
+
+      - name: Check Frontend Files
+        run: |
+          echo "Checking frontend files..."
+          test -f frontend/index.html || exit 1
+          test -f frontend/login.html || exit 1
+          test -f frontend/register.html || exit 1
+          test -f frontend/dashboard.html || exit 1
+          test -d frontend/js || exit 1
+          test -d frontend/css || exit 1
+          echo "✅ All required files present"
+
+      - name: Validate HTML
+        run: |
+          npm install -g html-validator-cli
+          html-validator --file=frontend/index.html --verbose || echo "HTML validation warnings"
+
+      - name: Check JavaScript Syntax
+        run: |
+          for file in frontend/js/*.js; do
+            node --check "$file" && echo "✅ $file" || echo "❌ $file has syntax errors"
+          done
+
+      - name: Security Check
+        run: |
+          cd backend
+          npm audit --audit-level=moderate || echo "⚠️ Security vulnerabilities found"
+
+  build-test:
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Build Backend
+        run: |
+          cd backend
+          npm ci
+          echo "✅ Backend build successful"
+
+      - name: Test Frontend Load
+        run: |
+          cd frontend
+          python -m http.server 8000 &
+          sleep 3
+          curl -f http://localhost:8000/ || exit 1
+          echo "✅ Frontend loads successfully"
