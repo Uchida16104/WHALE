@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ログイン - WHALE</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pouchdb@8.0.1/dist/pouchdb.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-md">
+        <div class="bg-white rounded-2xl shadow-2xl p-8">
+            <div class="text-center mb-8">
+                <div class="inline-block bg-blue-600 text-white text-4xl p-4 rounded-full mb-4">
+                    🐋
+                </div>
+                <h1 class="text-3xl font-bold text-gray-800">WHALE</h1>
+                <p class="text-sm text-gray-600 mt-2">福祉・医療・行政・介護・教育統合システム</p>
+            </div>
+
+            <div id="error-message" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4"></div>
+            <div id="timeout-message" class="hidden bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mb-4">
+                セッションがタイムアウトしました。再度ログインしてください。
+            </div>
+
+            <form id="login-form" class="space-y-6">
+                <div>
+                    <label for="organization-id" class="block text-sm font-medium text-gray-700 mb-2">
+                        施設機関ID
+                    </label>
+                    <input type="text" 
+                           id="organization-id" 
+                           name="organizationId" 
+                           required
+                           autocomplete="username"
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                           placeholder="施設機関IDを入力">
+                </div>
+
+                <div>
+                    <label for="user-id" class="block text-sm font-medium text-gray-700 mb-2">
+                        ユーザーID
+                    </label>
+                    <input type="text" 
+                           id="user-id" 
+                           name="userId" 
+                           required
+                           autocomplete="username"
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                           placeholder="ユーザーIDを入力">
+                </div>
+
+                <div>
+                    <label for="password" class="block text-sm font-medium text-gray-700 mb-2">
+                        パスワード
+                    </label>
+                    <input type="password" 
+                           id="password" 
+                           name="password" 
+                           required
+                           autocomplete="current-password"
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                           placeholder="パスワードを入力">
+                </div>
+
+                <button type="submit"
+                        id="login-button"
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed">
+                    ログイン
+                </button>
+            </form>
+
+            <div class="mt-6 text-center">
+                <a href="register.html" 
+                   class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                    新規登録はこちら
+                </a>
+            </div>
+        </div>
+
+        <div class="text-center mt-6 text-sm text-gray-600">
+            <p>&copy; 2025 WHALE System. Developed by Hirotoshi Uchida</p>
+        </div>
+    </div>
+
+    <script type="module" src="js/storage.js"></script>
+    <script type="module" src="js/auth.js"></script>
+
+    <script>
+        // グローバル変数
+        window.WHALE = {
+            API_URL: 'https://whale-backend.onrender.com',
+            GITHUB_PAGES_URL: 'https://uchida16104.github.io/WHALE',
+            VERSION: '2.0.0'
+        };
+
+        // 初期化
+        document.addEventListener('DOMContentLoaded', async () => {
+            console.log('🐋 Login page loaded');
+
+            // ストレージ初期化
+            await window.WhaleStorage.init();
+
+            // タイムアウトメッセージ表示
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('timeout') === '1') {
+                document.getElementById('timeout-message').classList.remove('hidden');
+            }
+
+            // 既にログイン済みの場合はダッシュボードへ
+            const isAuthenticated = await window.WhaleAuth.checkAuth();
+            if (isAuthenticated) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            // フォーム送信処理
+            const form = document.getElementById('login-form');
+            const button = document.getElementById('login-button');
+            const errorDiv = document.getElementById('error-message');
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                // ボタン無効化
+                button.disabled = true;
+                button.textContent = 'ログイン中...';
+                errorDiv.classList.add('hidden');
+
+                try {
+                    const formData = new FormData(form);
+                    const credentials = {
+                        organizationId: formData.get('organizationId'),
+                        userId: formData.get('userId'),
+                        password: formData.get('password')
+                    };
+
+                    // バリデーション
+                    if (!credentials.organizationId || !credentials.userId || !credentials.password) {
+                        throw new Error('全ての項目を入力してください');
+                    }
+
+                    // ログイン実行
+                    const result = await window.WhaleAuth.login(credentials);
+
+                    if (result.success) {
+                        console.log('✅ Login successful');
+                        // ダッシュボードへリダイレクト
+                        window.location.href = 'index.html';
+                    } else {
+                        throw new Error('ログインに失敗しました');
+                    }
+                } catch (error) {
+                    console.error('❌ Login error:', error);
+                    errorDiv.textContent = error.message || '認証に失敗しました';
+                    errorDiv.classList.remove('hidden');
+                    
+                    // ボタン有効化
+                    button.disabled = false;
+                    button.textContent = 'ログイン';
+                }
+            });
+
+            // Enterキーでログイン
+            form.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !button.disabled) {
+                    form.dispatchEvent(new Event('submit'));
+                }
+            });
+        });
+    </script>
+</body>
+</html>
