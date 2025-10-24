@@ -1,0 +1,21 @@
+# GitHub Pages Configuration
+
+title: WHALE
+description: 福祉・医療・行政・介護・教育統合システム
+theme: null
+baseurl: "/WHALE"
+url: "https://your-username.github.io"
+
+# Build settings
+markdown: kramdown
+plugins:
+  - jekyll-sitemap
+  - jekyll-seo-tag
+
+# Exclude from build
+exclude:
+  - node_modules
+  - package.json
+  - package-lock.json
+  - README.md
+  - .gitignore
