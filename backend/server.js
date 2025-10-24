@@ -36,7 +36,7 @@ app.use(helmet({
 // CORS設定
 const corsOptions = {
     origin: [
-        'https://uchida16104.github.io',
+        'https://uchida16104.github.io/WHALE',
         'http://localhost:3000',
         'http://127.0.0.1:3000'
     ],
