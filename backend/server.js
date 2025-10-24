@@ -28,7 +28,7 @@ app.use(helmet({
             styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.tailwindcss.com"],
             scriptSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com", "https://cdn.jsdelivr.net"],
             imgSrc: ["'self'", "data:", "https:"],
-            connectSrc: ["'self'", "https://whale-backend.onrender.com"]
+            connectSrc: ["'self'", "https://whale-backend-84p5.onrender.com"]
         }
     }
 }));
