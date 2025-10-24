@@ -1,0 +1,271 @@
+<div class="container mx-auto px-4 py-8">
+    <div class="mb-8">
+        <h2 class="text-3xl font-bold text-gray-800 mb-2">ダッシュボード</h2>
+        <p class="text-gray-600">今日の概要</p>
+    </div>
+
+    <!-- メインメニューカード -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <button onclick="loadPage('daily-record.html')"
+                class="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left">
+            <div class="text-4xl mb-3">📝</div>
+            <h3 class="font-semibold text-gray-800 text-lg">日々の記録</h3>
+            <p class="text-sm text-gray-600 mt-2">生活情報を記録</p>
+        </button>
+
+        <button onclick="loadPage('reports.html')"
+                class="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left">
+            <div class="text-4xl mb-3">📊</div>
+            <h3 class="font-semibold text-gray-800 text-lg">レポート</h3>
+            <p class="text-sm text-gray-600 mt-2">データ分析と出力</p>
+        </button>
+
+        <button id="attendance-menu" class="hidden bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left"
+                onclick="loadPage('attendance.html')">
+            <div class="text-4xl mb-3">📅</div>
+            <h3 class="font-semibold text-gray-800 text-lg">出席管理</h3>
+            <p class="text-sm text-gray-600 mt-2">利用者の出席記録</p>
+        </button>
+
+        <button id="users-menu" class="hidden bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left"
+                onclick="loadPage('users.html')">
+            <div class="text-4xl mb-3">👥</div>
+            <h3 class="font-semibold text-gray-800 text-lg">利用者管理</h3>
+            <p class="text-sm text-gray-600 mt-2">利用者情報の管理</p>
+        </button>
+
+        <button id="assessments-menu" class="hidden bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left"
+                onclick="loadPage('assessments.html')">
+            <div class="text-4xl mb-3">📋</div>
+            <h3 class="font-semibold text-gray-800 text-lg">アセスメント</h3>
+            <p class="text-sm text-gray-600 mt-2">評価とモニタリング</p>
+        </button>
+
+        <button id="service-plans-menu" class="hidden bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left"
+                onclick="loadPage('service-plans.html')">
+            <div class="text-4xl mb-3">📄</div>
+            <h3 class="font-semibold text-gray-800 text-lg">サービス計画</h3>
+            <p class="text-sm text-gray-600 mt-2">支援計画書の作成</p>
+        </button>
+
+        <button onclick="loadPage('settings.html')"
+                class="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left">
+            <div class="text-4xl mb-3">⚙️</div>
+            <h3 class="font-semibold text-gray-800 text-lg">設定</h3>
+            <p class="text-sm text-gray-600 mt-2">システム設定</p>
+        </button>
+    </div>
+
+    <!-- 統計情報 -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-xl shadow-lg">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-sm opacity-90">今月の記録</span>
+                <span class="text-2xl">📈</span>
+            </div>
+            <div class="text-3xl font-bold" id="records-count-month">-</div>
+            <div class="text-xs opacity-75 mt-1">件</div>
+        </div>
+
+        <div class="bg-gradient-to-br from-green-500 to-green-600 text-white p-6 rounded-xl shadow-lg">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-sm opacity-90">今週の記録</span>
+                <span class="text-2xl">✅</span>
+            </div>
+            <div class="text-3xl font-bold" id="records-count-week">-</div>
+            <div class="text-xs opacity-75 mt-1">件</div>
+        </div>
+
+        <div class="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-6 rounded-xl shadow-lg">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-sm opacity-90">平均気分</span>
+                <span class="text-2xl">😊</span>
+            </div>
+            <div class="text-3xl font-bold" id="avg-mood">-</div>
+            <div class="text-xs opacity-75 mt-1">/ 10</div>
+        </div>
+
+        <div class="bg-gradient-to-br from-orange-500 to-orange-600 text-white p-6 rounded-xl shadow-lg">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-sm opacity-90">平均体温</span>
+                <span class="text-2xl">🌡️</span>
+            </div>
+            <div class="text-3xl font-bold" id="avg-temp">-</div>
+            <div class="text-xs opacity-75 mt-1">℃</div>
+        </div>
+    </div>
+
+    <!-- 最近の記録 -->
+    <div class="bg-white rounded-xl shadow-lg p-6">
+        <div class="flex items-center justify-between mb-6">
+            <h3 class="text-xl font-bold text-gray-800">最近の記録</h3>
+            <button onclick="loadPage('daily-record.html')" 
+                    class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                すべて見る →
+            </button>
+        </div>
+
+        <div id="recent-records" class="space-y-4">
+            <div class="text-center py-8 text-gray-500">
+                <div class="text-4xl mb-2">📋</div>
+                <p>記録を読み込んでいます...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ページ読み込み関数
+    function loadPage(url) {
+        htmx.ajax('GET', url, {
+            target: '#main-content',
+            swap: 'innerHTML',
+            pushUrl: true
+        });
+    }
+
+    // ダッシュボード初期化
+    (async function initDashboard() {
+        try {
+            const currentUser = await window.WhaleStorage.getCurrentUser();
+            if (!currentUser) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            // 権限に応じてメニュー表示
+            if (currentUser.role === 'admin' || currentUser.role === 'staff') {
+                document.getElementById('attendance-menu')?.classList.remove('hidden');
+                document.getElementById('users-menu')?.classList.remove('hidden');
+                document.getElementById('assessments-menu')?.classList.remove('hidden');
+                document.getElementById('service-plans-menu')?.classList.remove('hidden');
+            }
+
+            // 統計データ取得
+            await loadStatistics(currentUser);
+
+            // 最近の記録取得
+            await loadRecentRecords(currentUser);
+
+        } catch (error) {
+            console.error('Dashboard initialization error:', error);
+        }
+    })();
+
+    // 統計データ読み込み
+    async function loadStatistics(user) {
+        try {
+            // 今月の記録数
+            const thisMonth = new Date();
+            const firstDay = new Date(thisMonth.getFullYear(), thisMonth.getMonth(), 1);
+            const lastDay = new Date(thisMonth.getFullYear(), thisMonth.getMonth() + 1, 0);
+            
+            const monthRecords = await window.WhaleStorage.getDailyRecords(
+                user._id,
+                firstDay.toISOString().split('T')[0],
+                lastDay.toISOString().split('T')[0]
+            );
+
+            // 今週の記録数
+            const today = new Date();
+            const firstDayOfWeek = new Date(today);
+            firstDayOfWeek.setDate(today.getDate() - today.getDay());
+            
+            const weekRecords = await window.WhaleStorage.getDailyRecords(
+                user._id,
+                firstDayOfWeek.toISOString().split('T')[0],
+                today.toISOString().split('T')[0]
+            );
+
+            // 平均気分スコア
+            const moodScores = weekRecords
+                .map(r => r.moodScore)
+                .filter(Boolean);
+            const avgMood = moodScores.length > 0
+                ? (moodScores.reduce((a, b) => a + b, 0) / moodScores.length).toFixed(1)
+                : '-';
+
+            // 平均体温
+            const temperatures = weekRecords
+                .map(r => r.temperature)
+                .filter(Boolean);
+            const avgTemp = temperatures.length > 0
+                ? (temperatures.reduce((a, b) => a + b, 0) / temperatures.length).toFixed(1)
+                : '-';
+
+            // DOM更新
+            document.getElementById('records-count-month').textContent = monthRecords.length;
+            document.getElementById('records-count-week').textContent = weekRecords.length;
+            document.getElementById('avg-mood').textContent = avgMood;
+            document.getElementById('avg-temp').textContent = avgTemp;
+
+        } catch (error) {
+            console.error('Statistics loading error:', error);
+        }
+    }
+
+    // 最近の記録読み込み
+    async function loadRecentRecords(user) {
+        try {
+            const container = document.getElementById('recent-records');
+            
+            // 過去7日間の記録取得
+            const today = new Date();
+            const sevenDaysAgo = new Date(today);
+            sevenDaysAgo.setDate(today.getDate() - 7);
+
+            const records = await window.WhaleStorage.getDailyRecords(
+                user._id,
+                sevenDaysAgo.toISOString().split('T')[0],
+                today.toISOString().split('T')[0]
+            );
+
+            if (records.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8 text-gray-500">
+                        <div class="text-4xl mb-2">📝</div>
+                        <p>まだ記録がありません</p>
+                        <button onclick="loadPage('daily-record.html')" 
+                                class="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition">
+                            最初の記録を作成
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            // 記録を表示
+            container.innerHTML = records.slice(0, 5).map(record => `
+                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-3">
+                            <span class="text-2xl">
+                                ${record.moodScore >= 8 ? '😊' : record.moodScore >= 5 ? '😐' : '😔'}
+                            </span>
+                            <div>
+                                <div class="font-medium text-gray-800">
+                                    ${new Date(record.recordDate).toLocaleDateString('ja-JP', {
+                                        year: 'numeric',
+                                        month: 'long',
+                                        day: 'numeric',
+                                        weekday: 'short'
+                                    })}
+                                </div>
+                                <div class="text-sm text-gray-600">
+                                    体温: ${record.temperature || '-'} ℃ | 
+                                    気分: ${record.moodScore || '-'} / 10
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                        詳細 →
+                    </button>
+                </div>
+            `).join('');
+
+        } catch (error) {
+            console.error('Recent records loading error:', error);
+        }
+    }
+</script>
