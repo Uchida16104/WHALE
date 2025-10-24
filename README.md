@@ -105,7 +105,7 @@ git init
 git add .
 git commit -m "Initial commit"
 git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/WHALE.git
+git remote add origin https://github.com/uchida16104/WHALE.git
 git push -u origin main
 
 # GitHub Settings > Pages で以下を設定:
@@ -130,7 +130,7 @@ git push -u origin main
    ```
    NODE_ENV=production
    JWT_SECRET=<ランダムな文字列>
-   CORS_ORIGIN=https://YOUR_USERNAME.github.io
+   CORS_ORIGIN=https://uchida16104.github.io
    ```
 
 6. "Create Web Service"をクリック
@@ -142,7 +142,7 @@ git push -u origin main
 ```javascript
 window.WHALE = {
     API_URL: 'https://whale-backend-84p5.onrender.com', // ← Render.comのURL
-    GITHUB_PAGES_URL: 'https://YOUR_USERNAME.github.io/WHALE',
+    GITHUB_PAGES_URL: 'https://uchida16104.github.io/WHALE',
     VERSION: '2.0.0'
 };
 ```
@@ -188,7 +188,7 @@ WHALE/
 NODE_ENV=production
 PORT=3000
 JWT_SECRET=your-secret-key-here
-CORS_ORIGIN=https://your-username.github.io
+CORS_ORIGIN=https://uchida16104.github.io
 ```
 
 ### LocalStorage設定 (フロントエンド)
