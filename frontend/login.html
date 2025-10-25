@@ -5,8 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ログイン - WHALE</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/htmx.org"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://cdn.jsdelivr.net/npm/pouchdb@8.0.1/dist/pouchdb.min.js"></script>
+    <!-- PouchDB Find Plugin (CRITICAL) -->
+    <script src="https://cdn.jsdelivr.net/npm/pouchdb-find@8.0.1/dist/pouchdb.find.min.js"></script>
 </head>
 <body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen flex items-center justify-center p-4">
     <div class="w-full max-w-md">
@@ -99,75 +101,95 @@
         document.addEventListener('DOMContentLoaded', async () => {
             console.log('🐋 Login page loaded');
 
-            // ストレージ初期化
-            await window.WhaleStorage.init();
-
-            // タイムアウトメッセージ表示
-            const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.get('timeout') === '1') {
-                document.getElementById('timeout-message').classList.remove('hidden');
-            }
-
-            // 既にログイン済みの場合はダッシュボードへ
-            const isAuthenticated = await window.WhaleAuth.checkAuth();
-            if (isAuthenticated) {
-                window.location.href = 'index.html';
-                return;
-            }
-
-            // フォーム送信処理
-            const form = document.getElementById('login-form');
-            const button = document.getElementById('login-button');
-            const errorDiv = document.getElementById('error-message');
-
-            form.addEventListener('submit', async (e) => {
-                e.preventDefault();
+            try {
+                // PouchDB Find Plugin確認
+                if (typeof PouchDB === 'undefined') {
+                    throw new Error('PouchDB is not loaded');
+                }
                 
-                // ボタン無効化
-                button.disabled = true;
-                button.textContent = 'ログイン中...';
-                errorDiv.classList.add('hidden');
+                const testDb = new PouchDB('test_login_db');
+                if (typeof testDb.find !== 'function') {
+                    throw new Error('PouchDB Find Plugin is required');
+                }
+                await testDb.destroy();
+                console.log('✅ PouchDB Find Plugin confirmed');
 
-                try {
-                    const formData = new FormData(form);
-                    const credentials = {
-                        organizationId: formData.get('organizationId'),
-                        userId: formData.get('userId'),
-                        password: formData.get('password')
-                    };
+                // ストレージ初期化
+                await window.WhaleStorage.init();
 
-                    // バリデーション
-                    if (!credentials.organizationId || !credentials.userId || !credentials.password) {
-                        throw new Error('全ての項目を入力してください');
-                    }
+                // タイムアウトメッセージ表示
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.get('timeout') === '1') {
+                    document.getElementById('timeout-message').classList.remove('hidden');
+                }
 
-                    // ログイン実行
-                    const result = await window.WhaleAuth.login(credentials);
+                // 既にログイン済みの場合はダッシュボードへ
+                const isAuthenticated = await window.WhaleAuth.checkAuth();
+                if (isAuthenticated) {
+                    window.location.href = 'index.html';
+                    return;
+                }
 
-                    if (result.success) {
-                        console.log('✅ Login successful');
-                        // ダッシュボードへリダイレクト
-                        window.location.href = 'index.html';
-                    } else {
-                        throw new Error('ログインに失敗しました');
-                    }
-                } catch (error) {
-                    console.error('❌ Login error:', error);
-                    errorDiv.textContent = error.message || '認証に失敗しました';
-                    errorDiv.classList.remove('hidden');
+                // フォーム送信処理
+                const form = document.getElementById('login-form');
+                const button = document.getElementById('login-button');
+                const errorDiv = document.getElementById('error-message');
+
+                form.addEventListener('submit', async (e) => {
+                    e.preventDefault();
                     
-                    // ボタン有効化
-                    button.disabled = false;
-                    button.textContent = 'ログイン';
-                }
-            });
+                    // ボタン無効化
+                    button.disabled = true;
+                    button.textContent = 'ログイン中...';
+                    errorDiv.classList.add('hidden');
 
-            // Enterキーでログイン
-            form.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter' && !button.disabled) {
-                    form.dispatchEvent(new Event('submit'));
-                }
-            });
+                    try {
+                        const formData = new FormData(form);
+                        const credentials = {
+                            organizationId: formData.get('organizationId'),
+                            userId: formData.get('userId'),
+                            password: formData.get('password')
+                        };
+
+                        // バリデーション
+                        if (!credentials.organizationId || !credentials.userId || !credentials.password) {
+                            throw new Error('全ての項目を入力してください');
+                        }
+
+                        // ログイン実行
+                        const result = await window.WhaleAuth.login(credentials);
+
+                        if (result.success) {
+                            console.log('✅ Login successful');
+                            // ダッシュボードへリダイレクト
+                            window.location.href = 'index.html';
+                        } else {
+                            throw new Error('ログインに失敗しました');
+                        }
+                    } catch (error) {
+                        console.error('❌ Login error:', error);
+                        errorDiv.textContent = error.message || '認証に失敗しました';
+                        errorDiv.classList.remove('hidden');
+                        
+                        // ボタン有効化
+                        button.disabled = false;
+                        button.textContent = 'ログイン';
+                    }
+                });
+
+                // Enterキーでログイン
+                form.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter' && !button.disabled) {
+                        form.dispatchEvent(new Event('submit'));
+                    }
+                });
+
+            } catch (error) {
+                console.error('❌ Login page initialization error:', error);
+                const errorDiv = document.getElementById('error-message');
+                errorDiv.textContent = 'システムエラー: ' + error.message;
+                errorDiv.classList.remove('hidden');
+            }
         });
     </script>
 </body>
