@@ -5,8 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>新規登録 - WHALE</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/htmx.org"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://cdn.jsdelivr.net/npm/pouchdb@8.0.1/dist/pouchdb.min.js"></script>
+    <!-- PouchDB Find Plugin (CRITICAL) -->
+    <script src="https://cdn.jsdelivr.net/npm/pouchdb-find@8.0.1/dist/pouchdb.find.min.js"></script>
 </head>
 <body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen py-12 px-4">
     <div class="max-w-4xl mx-auto">
@@ -214,94 +216,115 @@
         document.addEventListener('DOMContentLoaded', async () => {
             console.log('🐋 Register page loaded');
 
-            // ストレージ初期化
-            await window.WhaleStorage.init();
-
-            const form = document.getElementById('register-form');
-            const button = document.getElementById('register-button');
-            const errorDiv = document.getElementById('error-message');
-            const successDiv = document.getElementById('success-message');
-
-            // パスワード確認バリデーション
-            const password = document.getElementById('password');
-            const passwordConfirmation = document.getElementById('password-confirmation');
-
-            passwordConfirmation.addEventListener('input', () => {
-                if (password.value !== passwordConfirmation.value) {
-                    passwordConfirmation.setCustomValidity('パスワードが一致しません');
-                } else {
-                    passwordConfirmation.setCustomValidity('');
+            try {
+                // PouchDB Find Plugin確認
+                if (typeof PouchDB === 'undefined') {
+                    throw new Error('PouchDB is not loaded');
                 }
-            });
-
-            // フォーム送信処理
-            form.addEventListener('submit', async (e) => {
-                e.preventDefault();
-
-                // パスワード一致確認
-                if (password.value !== passwordConfirmation.value) {
-                    errorDiv.textContent = 'パスワードが一致しません';
-                    errorDiv.classList.remove('hidden');
-                    successDiv.classList.add('hidden');
-                    return;
+                
+                const testDb = new PouchDB('test_register_db');
+                if (typeof testDb.find !== 'function') {
+                    throw new Error('PouchDB Find Plugin is required');
                 }
+                await testDb.destroy();
+                console.log('✅ PouchDB Find Plugin confirmed');
 
-                // ボタン無効化
-                button.disabled = true;
-                button.textContent = '登録中...';
-                errorDiv.classList.add('hidden');
-                successDiv.classList.add('hidden');
+                // ストレージ初期化
+                await window.WhaleStorage.init();
 
-                try {
-                    const formData = new FormData(form);
-                    const registrationData = {
-                        organizationName: formData.get('organizationName'),
-                        organizationId: formData.get('organizationId'),
-                        organizationPostalCode: formData.get('organizationPostalCode'),
-                        organizationAddress: formData.get('organizationAddress'),
-                        organizationPhone: formData.get('organizationPhone'),
-                        organizationEstablishedDate: formData.get('organizationEstablishedDate'),
-                        adminName: formData.get('adminName'),
-                        adminNameKana: formData.get('adminNameKana'),
-                        adminPostalCode: formData.get('adminPostalCode'),
-                        adminAddress: formData.get('adminAddress'),
-                        adminPhone: formData.get('adminPhone'),
-                        adminBirthday: formData.get('adminBirthday'),
-                        adminUserId: formData.get('adminUserId'),
-                        adminPassword: formData.get('adminPassword')
-                    };
+                const form = document.getElementById('register-form');
+                const button = document.getElementById('register-button');
+                const errorDiv = document.getElementById('error-message');
+                const successDiv = document.getElementById('success-message');
 
-                    // バリデーション
-                    if (!registrationData.organizationName || !registrationData.organizationId) {
-                        throw new Error('必須項目を入力してください');
-                    }
+                // パスワード確認バリデーション
+                const password = document.getElementById('password');
+                const passwordConfirmation = document.getElementById('password-confirmation');
 
-                    // 登録実行
-                    const result = await window.WhaleAuth.register(registrationData);
-
-                    if (result.success) {
-                        console.log('✅ Registration successful');
-                        successDiv.textContent = '登録が完了しました。ダッシュボードに移動します...';
-                        successDiv.classList.remove('hidden');
-
-                        // 2秒後にダッシュボードへリダイレクト
-                        setTimeout(() => {
-                            window.location.href = 'index.html';
-                        }, 2000);
+                passwordConfirmation.addEventListener('input', () => {
+                    if (password.value !== passwordConfirmation.value) {
+                        passwordConfirmation.setCustomValidity('パスワードが一致しません');
                     } else {
-                        throw new Error('登録に失敗しました');
+                        passwordConfirmation.setCustomValidity('');
                     }
-                } catch (error) {
-                    console.error('❌ Registration error:', error);
-                    errorDiv.textContent = error.message || '登録に失敗しました';
-                    errorDiv.classList.remove('hidden');
-                    window.scrollTo(0, 0);
+                });
 
-                    // ボタン有効化
-                    button.disabled = false;
-                    button.textContent = '登録する';
-                }
-            });
+                // フォーム送信処理
+                form.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+
+                    // パスワード一致確認
+                    if (password.value !== passwordConfirmation.value) {
+                        errorDiv.textContent = 'パスワードが一致しません';
+                        errorDiv.classList.remove('hidden');
+                        successDiv.classList.add('hidden');
+                        return;
+                    }
+
+                    // ボタン無効化
+                    button.disabled = true;
+                    button.textContent = '登録中...';
+                    errorDiv.classList.add('hidden');
+                    successDiv.classList.add('hidden');
+
+                    try {
+                        const formData = new FormData(form);
+                        const registrationData = {
+                            organizationName: formData.get('organizationName'),
+                            organizationId: formData.get('organizationId'),
+                            organizationPostalCode: formData.get('organizationPostalCode'),
+                            organizationAddress: formData.get('organizationAddress'),
+                            organizationPhone: formData.get('organizationPhone'),
+                            organizationEstablishedDate: formData.get('organizationEstablishedDate'),
+                            adminName: formData.get('adminName'),
+                            adminNameKana: formData.get('adminNameKana'),
+                            adminPostalCode: formData.get('adminPostalCode'),
+                            adminAddress: formData.get('adminAddress'),
+                            adminPhone: formData.get('adminPhone'),
+                            adminBirthday: formData.get('adminBirthday'),
+                            adminUserId: formData.get('adminUserId'),
+                            adminPassword: formData.get('adminPassword')
+                        };
+
+                        // バリデーション
+                        if (!registrationData.organizationName || !registrationData.organizationId) {
+                            throw new Error('必須項目を入力してください');
+                        }
+
+                        // 登録実行
+                        console.log('🔐 Attempting registration...');
+                        const result = await window.WhaleAuth.register(registrationData);
+
+                        if (result.success) {
+                            console.log('✅ Registration successful');
+                            successDiv.textContent = '登録が完了しました。ダッシュボードに移動します...';
+                            successDiv.classList.remove('hidden');
+
+                            // 2秒後にダッシュボードへリダイレクト
+                            setTimeout(() => {
+                                window.location.href = 'index.html';
+                            }, 2000);
+                        } else {
+                            throw new Error('登録に失敗しました');
+                        }
+                    } catch (error) {
+                        console.error('❌ Registration error:', error);
+                        errorDiv.textContent = error.message || '登録に失敗しました';
+                        errorDiv.classList.remove('hidden');
+                        window.scrollTo(0, 0);
+
+                        // ボタン有効化
+                        button.disabled = false;
+                        button.textContent = '登録する';
+                    }
+                });
+
+            } catch (error) {
+                console.error('❌ Register page initialization error:', error);
+                const errorDiv = document.getElementById('error-message');
+                errorDiv.textContent = 'システムエラー: ' + error.message;
+                errorDiv.classList.remove('hidden');
+            }
         });
     </script>
 </body>
