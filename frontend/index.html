@@ -11,10 +11,12 @@
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- HTMX -->
-    <script src="https://unpkg.com/htmx.org"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     
     <!-- PouchDB -->
     <script src="https://cdn.jsdelivr.net/npm/pouchdb@8.0.1/dist/pouchdb.min.js"></script>
+    <!-- PouchDB Find Plugin (CRITICAL) -->
+    <script src="https://cdn.jsdelivr.net/npm/pouchdb-find@8.0.1/dist/pouchdb.find.min.js"></script>
     
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -135,6 +137,20 @@
             console.log('🐋 WHALE System Starting...');
             
             try {
+                // PouchDBがロードされているか確認
+                if (typeof PouchDB === 'undefined') {
+                    throw new Error('PouchDB is not loaded');
+                }
+                
+                // PouchDB Find Pluginが利用可能か確認
+                const testDb = new PouchDB('test_db');
+                if (typeof testDb.find !== 'function') {
+                    console.error('❌ PouchDB Find Plugin not loaded');
+                    throw new Error('PouchDB Find Plugin is required but not loaded');
+                }
+                await testDb.destroy();
+                console.log('✅ PouchDB Find Plugin loaded');
+                
                 // ストレージ初期化
                 await window.WhaleStorage.init();
                 console.log('✅ Storage initialized');
@@ -153,10 +169,10 @@
                 }
             } catch (error) {
                 console.error('❌ Initialization error:', error);
-                showToast('システムの初期化に失敗しました', 'error');
+                showToast('システムの初期化に失敗しました: ' + error.message, 'error');
                 setTimeout(() => {
                     window.location.href = 'login.html';
-                }, 2000);
+                }, 3000);
             } finally {
                 hideLoading();
             }
@@ -255,7 +271,7 @@
         // Service Worker登録（オフライン対応）
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js')
+                navigator.serviceWorker.register('/WHALE/sw.js')
                     .then(reg => console.log('✅ Service Worker registered:', reg.scope))
                     .catch(err => console.error('❌ Service Worker registration failed:', err));
             });
