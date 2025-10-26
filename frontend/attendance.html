@@ -47,19 +47,28 @@
 </div>
 
 <script>
+    function loadPage(url) {
+        htmx.ajax('GET', url, { target: '#main-content', swap: 'innerHTML', pushUrl: true });
+    }
+
     let attendanceData = {};
     let currentDate = new Date();
 
     (async function initAttendance() {
-        const currentUser = await window.WhaleStorage.getCurrentUser();
-        if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'staff')) {
-            window.showToast('権限がありません', 'error');
-            loadPage('dashboard.html');
-            return;
-        }
+        try {
+            const currentUser = await window.WhaleStorage.getCurrentUser();
+            if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'staff')) {
+                window.showToast('権限がありません', 'error');
+                loadPage('dashboard.html');
+                return;
+            }
 
-        setToday();
-        await loadAttendance();
+            setToday();
+            await loadAttendance();
+        } catch (error) {
+            console.error('Attendance init error:', error);
+            window.showToast('初期化エラー: ' + error.message, 'error');
+        }
     })();
 
     function setToday() {
@@ -79,16 +88,16 @@
             const dateInput = document.getElementById('attendance-date');
             currentDate = dateInput.valueAsDate || new Date();
 
-            const currentUser = await window.WhaleStorage.getCurrentUser();
-            const users = await window.WhaleStorage.findByType('user', {
-                selector: { type: 'user', organizationId: currentUser.organizationId, role: 'user' }
-            });
+            // 全利用者取得
+            const users = await window.WhaleStorage.getUsers();
+            const serviceUsers = users.filter(u => u.role === 'user');
 
+            // 出席記録取得
             const dateStr = currentDate.toISOString().split('T')[0];
-            const records = await window.WhaleStorage.findByDateRange('attendance_record', dateStr, dateStr);
+            const records = await window.WhaleStorage.getAttendance(dateStr);
 
             attendanceData = {};
-            users.forEach(user => {
+            serviceUsers.forEach(user => {
                 const record = records.find(r => r.userId === user._id);
                 attendanceData[user._id] = {
                     user: user,
@@ -102,7 +111,7 @@
             displayAttendance();
         } catch (error) {
             console.error('Load attendance error:', error);
-            window.showToast('出席データの読み込みに失敗しました', 'error');
+            window.showToast('出席データの読み込みに失敗しました: ' + error.message, 'error');
         }
     }
 
@@ -164,14 +173,12 @@
 
     async function saveAttendance() {
         try {
-            const currentUser = await window.WhaleStorage.getCurrentUser();
             const dateStr = currentDate.toISOString().split('T')[0];
 
             for (const userId in attendanceData) {
                 const data = attendanceData[userId];
-                await window.WhaleStorage.save('attendance_record', {
+                await window.WhaleStorage.saveAttendance({
                     userId: userId,
-                    organizationId: currentUser.organizationId,
                     attendanceDate: dateStr,
                     present: data.present,
                     arrivalTime: data.arrivalTime,
@@ -183,7 +190,7 @@
             window.showToast('出席データを保存しました', 'success');
         } catch (error) {
             console.error('Save attendance error:', error);
-            window.showToast('保存に失敗しました', 'error');
+            window.showToast('保存に失敗しました: ' + error.message, 'error');
         }
     }
 </script>
