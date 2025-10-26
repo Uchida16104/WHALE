@@ -7,17 +7,25 @@
     <meta name="theme-color" content="#2563eb">
     <title>WHALE - 統合管理システム</title>
     
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    
     <!-- PouchDB -->
     <script src="https://cdn.jsdelivr.net/npm/pouchdb@8.0.1/dist/pouchdb.min.js"></script>
     <!-- PouchDB Find Plugin (CRITICAL) -->
     <script src="https://cdn.jsdelivr.net/npm/pouchdb@8.0.1/dist/pouchdb.find.min.js"></script>
+    
+    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     
+    <!-- カスタムスタイル -->
     <link rel="stylesheet" href="css/styles.css">
     
     <style>
+        /* ローディング画面 */
         #loading-screen {
             position: fixed;
             top: 0;
@@ -63,6 +71,7 @@
     </style>
 </head>
 <body class="bg-gray-50">
+    <!-- ローディング画面 -->
     <div id="loading-screen">
         <div class="whale-icon">🐋</div>
         <h1 class="text-white text-4xl font-bold mt-4">WHALE</h1>
@@ -70,7 +79,9 @@
         <div class="spinner mt-8"></div>
     </div>
 
+    <!-- メインコンテンツコンテナ -->
     <div id="app-container" class="hidden">
+        <!-- ナビゲーションバー -->
         <nav id="main-nav" class="bg-blue-600 text-white shadow-lg hidden">
             <div class="container mx-auto px-4 py-4">
                 <div class="flex justify-between items-center">
@@ -93,39 +104,54 @@
             </div>
         </nav>
 
+        <!-- メインコンテンツエリア -->
         <main id="main-content" 
               hx-get="dashboard.html" 
               hx-trigger="load" 
               hx-target="#main-content"
               hx-swap="innerHTML"
               hx-push-url="true">
+            <!-- コンテンツがここに動的に読み込まれます -->
         </main>
     </div>
 
+    <!-- 通知トースト -->
     <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
 
+    <!-- アプリケーションスクリプト -->
+    <script type="module" src="js/app.js"></script>
+    <script type="module" src="js/auth.js"></script>
+    <script type="module" src="js/storage.js"></script>
+    <script type="module" src="js/utils.js"></script>
+
     <script>
+        // グローバル変数
         window.WHALE = {
             API_URL: 'https://whale-backend-84p5.onrender.com',
             GITHUB_PAGES_URL: 'https://uchida16104.github.io/WHALE',
-            VERSION: '2.1.0'
+            VERSION: '2.0.0'
         };
-    </script>
 
-    <script type="module" src="js/api.js"></script>
-    <script type="module" src="js/storage.js"></script>
-    <script type="module" src="js/auth.js"></script>
-    <script type="module" src="js/utils.js"></script>
-
-    <script type="module">
+        // 初期化
         document.addEventListener('DOMContentLoaded', async () => {
             console.log('🐋 WHALE System Starting...');
             
             try {
-                // モジュールの読み込み待機
-                await new Promise(resolve => setTimeout(resolve, 100));
-
-                // Storage初期化
+                // PouchDBがロードされているか確認
+                if (typeof PouchDB === 'undefined') {
+                    throw new Error('PouchDB is not loaded');
+                }
+                
+                // PouchDB Find Pluginが利用可能か確認
+                const testDb = new PouchDB('test_db');
+                if (typeof testDb.find !== 'function') {
+                    console.error('❌ PouchDB Find Plugin not loaded');
+                    throw new Error('PouchDB Find Plugin is required but not loaded');
+                }
+                await testDb.destroy();
+                console.log('✅ PouchDB Find Plugin loaded');
+                
+                // ストレージ初期化
                 await window.WhaleStorage.init();
                 console.log('✅ Storage initialized');
                 
@@ -133,10 +159,12 @@
                 const isAuthenticated = await window.WhaleAuth.checkAuth();
                 
                 if (isAuthenticated) {
+                    // ログイン済み - ダッシュボードへ
                     showApp();
                     await loadUserInfo();
                     htmx.trigger('#main-content', 'load');
                 } else {
+                    // 未ログイン - ログイン画面へ
                     window.location.href = 'login.html';
                 }
             } catch (error) {
@@ -150,24 +178,27 @@
             }
         });
 
+        // アプリ表示
         function showApp() {
             document.getElementById('app-container').classList.remove('hidden');
             document.getElementById('main-nav').classList.remove('hidden');
         }
 
+        // ローディング非表示
         function hideLoading() {
             const loading = document.getElementById('loading-screen');
             loading.classList.add('hidden');
             setTimeout(() => loading.remove(), 500);
         }
 
+        // ユーザー情報読み込み
         async function loadUserInfo() {
             try {
                 const user = await window.WhaleStorage.getCurrentUser();
-                if (!user) return;
+                const org = await window.WhaleStorage.getOrganization(user.organizationId);
                 
                 document.getElementById('user-name').textContent = user.name;
-                document.getElementById('org-name').textContent = user.organizationId;
+                document.getElementById('org-name').textContent = org.name;
                 
                 const roleMap = {
                     'admin': '管理者',
@@ -180,6 +211,7 @@
             }
         }
 
+        // ログアウト
         async function handleLogout() {
             if (!confirm('ログアウトしますか?')) return;
             
@@ -192,6 +224,7 @@
             }
         }
 
+        // トースト通知
         function showToast(message, type = 'info') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
@@ -203,7 +236,7 @@
                 'info': 'bg-blue-500'
             };
             
-            toast.className = `${colors[type] || colors.info} text-white px-6 py-4 rounded-lg shadow-lg transform transition-all duration-300`;
+            toast.className = `${colors[type] || colors.info} text-white px-6 py-4 rounded-lg shadow-lg transform transition-all duration-300 translate-x-0`;
             toast.innerHTML = `
                 <div class="flex items-center space-x-3">
                     <span class="text-2xl">
@@ -221,9 +254,11 @@
             }, 3000);
         }
 
+        // グローバルエクスポート
         window.showToast = showToast;
         window.handleLogout = handleLogout;
 
+        // HTMX設定
         document.body.addEventListener('htmx:afterSwap', (event) => {
             console.log('HTMX content swapped:', event.detail.pathInfo.path);
         });
@@ -232,6 +267,15 @@
             console.error('HTMX error:', event.detail);
             showToast('通信エラーが発生しました', 'error');
         });
+
+        // Service Worker登録（オフライン対応）
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/WHALE/sw.js')
+                    .then(reg => console.log('✅ Service Worker registered:', reg.scope))
+                    .catch(err => console.error('❌ Service Worker registration failed:', err));
+            });
+        }
 
         console.log('🐋 WHALE System Ready');
     </script>
