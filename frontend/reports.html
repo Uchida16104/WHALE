@@ -112,31 +112,44 @@
 </div>
 
 <script>
-    let currentRecords = [];
-    let moodChart = null;
-    let tempChart = null;
-
     function loadPage(url) {
         htmx.ajax('GET', url, { target: '#main-content', swap: 'innerHTML', pushUrl: true });
     }
 
+    let currentRecords = [];
+    let currentUser = null;
+    let moodChart = null;
+    let tempChart = null;
+
     (async function initReports() {
-        // デフォルト期間設定（過去30日）
-        const endDate = new Date();
-        const startDate = new Date();
-        startDate.setDate(endDate.getDate() - 30);
+        try {
+            currentUser = await window.WhaleStorage.getCurrentUser();
+            if (!currentUser) {
+                window.showToast('ログインが必要です', 'error');
+                window.location.href = 'login.html';
+                return;
+            }
 
-        document.getElementById('start-date').valueAsDate = startDate;
-        document.getElementById('end-date').valueAsDate = endDate;
+            // デフォルト期間設定（過去30日）
+            const endDate = new Date();
+            const startDate = new Date();
+            startDate.setDate(endDate.getDate() - 30);
 
-        // 初期データ読み込み
-        await loadReportData();
+            document.getElementById('start-date').valueAsDate = startDate;
+            document.getElementById('end-date').valueAsDate = endDate;
+
+            // 初期データ読み込み
+            await loadReportData();
+
+        } catch (error) {
+            console.error('Reports init error:', error);
+            window.showToast('初期化エラー: ' + error.message, 'error');
+        }
     })();
 
     async function loadReportData() {
         try {
-            const user = await window.WhaleStorage.getCurrentUser();
-            if (!user) return;
+            if (!currentUser) return;
 
             const startDate = document.getElementById('start-date').value;
             const endDate = document.getElementById('end-date').value;
@@ -147,7 +160,8 @@
             }
 
             // データ取得
-            currentRecords = await window.WhaleStorage.getDailyRecords(user._id, startDate, endDate);
+            const result = await window.WhaleStorage.getDailyRecords(currentUser._id, startDate, endDate);
+            currentRecords = result;
 
             // 統計計算
             updateStatistics(currentRecords);
@@ -162,7 +176,7 @@
 
         } catch (error) {
             console.error('Load report data error:', error);
-            window.showToast('データ読み込みエラー', 'error');
+            window.showToast('データ読み込みエラー: ' + error.message, 'error');
         }
     }
 
@@ -277,39 +291,21 @@
                 return;
             }
 
-            const user = await window.WhaleStorage.getCurrentUser();
-            const org = await window.WhaleStorage.getOrganization(user.organizationId);
+            const analytics = calculateAnalytics();
+            const organization = { name: currentUser.organizationId };
 
-            const response = await fetch(`${window.WHALE.API_URL}/api/export/pdf`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    records: currentRecords.map(r => ({ ...r, userName: user.name })),
-                    analytics: {
-                        totalRecords: currentRecords.length,
-                        avgTemperature: currentRecords.map(r => r.temperature).filter(Boolean).reduce((a, b) => a + b, 0) / currentRecords.filter(r => r.temperature).length,
-                        avgMoodScore: currentRecords.map(r => r.moodScore).filter(Boolean).reduce((a, b) => a + b, 0) / currentRecords.filter(r => r.moodScore).length
-                    },
-                    organization: org
-                })
-            });
+            const data = {
+                records: currentRecords.map(r => ({ ...r, userName: currentUser.name })),
+                analytics: analytics,
+                organization: organization
+            };
 
-            if (response.ok) {
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `whale_report_${new Date().toISOString().split('T')[0]}.pdf`;
-                a.click();
-                window.showToast('PDFをダウンロードしました', 'success');
-            } else {
-                throw new Error('PDF generation failed');
-            }
+            const blob = await window.WhaleStorage.exportPDF(data);
+            window.showToast('PDFをダウンロードしました', 'success');
+
         } catch (error) {
             console.error('PDF export error:', error);
-            window.showToast('PDF出力エラー', 'error');
+            window.showToast('PDF出力エラー: ' + error.message, 'error');
         }
     }
 
@@ -320,72 +316,63 @@
                 return;
             }
 
-            const user = await window.WhaleStorage.getCurrentUser();
+            const data = {
+                records: currentRecords.map(r => ({ ...r, userName: currentUser.name }))
+            };
 
-            const response = await fetch(`${window.WHALE.API_URL}/api/export/excel`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    records: currentRecords.map(r => ({ ...r, userName: user.name }))
-                })
-            });
+            const blob = await window.WhaleStorage.exportExcel(data);
+            window.showToast('Excelをダウンロードしました', 'success');
 
-            if (response.ok) {
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `whale_report_${new Date().toISOString().split('T')[0]}.xlsx`;
-                a.click();
-                window.showToast('Excelをダウンロードしました', 'success');
-            } else {
-                throw new Error('Excel generation failed');
-            }
         } catch (error) {
             console.error('Excel export error:', error);
-            window.showToast('Excel出力エラー', 'error');
+            window.showToast('Excel出力エラー: ' + error.message, 'error');
         }
     }
 
-    async function exportCSV() {
+    function exportCSV() {
         try {
             if (currentRecords.length === 0) {
                 window.showToast('エクスポートするデータがありません', 'warning');
                 return;
             }
 
-            const user = await window.WhaleStorage.getCurrentUser();
+            // CSVヘッダー
+            const headers = ['日付', '体温', '血圧(高)', '血圧(低)', '脈拍', 'SpO2', '気分スコア', '朝食', '昼食', '夕食', '運動'];
+            let csv = headers.join(',') + '\n';
 
-            const response = await fetch(`${window.WHALE.API_URL}/api/export/csv`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    records: currentRecords.map(r => ({ ...r, userName: user.name }))
-                })
+            currentRecords.forEach(record => {
+                const row = [
+                    record.recordDate || '',
+                    record.temperature || '',
+                    record.bloodPressureHigh || '',
+                    record.bloodPressureLow || '',
+                    record.pulse || '',
+                    record.spo2 || '',
+                    record.moodScore || '',
+                    record.breakfast ? '有' : '無',
+                    record.lunch ? '有' : '無',
+                    record.dinner ? '有' : '無',
+                    record.exercise ? '有' : '無'
+                ];
+                csv += row.join(',') + '\n';
             });
 
-            if (response.ok) {
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `whale_report_${new Date().toISOString().split('T')[0]}.csv`;
-                a.click();
-                window.showToast('CSVをダウンロードしました', 'success');
-            } else {
-                throw new Error('CSV generation failed');
-            }
+            const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `whale_report_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            window.showToast('CSVをダウンロードしました', 'success');
         } catch (error) {
             console.error('CSV export error:', error);
-            window.showToast('CSV出力エラー', 'error');
+            window.showToast('CSV出力エラー: ' + error.message, 'error');
         }
     }
 
-    async function exportJSON() {
+    function exportJSON() {
         try {
             if (currentRecords.length === 0) {
                 window.showToast('エクスポートするデータがありません', 'warning');
@@ -394,7 +381,7 @@
 
             const data = {
                 exportDate: new Date().toISOString(),
-                version: window.WHALE.VERSION,
+                version: '2.1.0',
                 records: currentRecords
             };
 
@@ -409,7 +396,22 @@
             window.showToast('JSONをダウンロードしました', 'success');
         } catch (error) {
             console.error('JSON export error:', error);
-            window.showToast('JSON出力エラー', 'error');
+            window.showToast('JSON出力エラー: ' + error.message, 'error');
         }
+    }
+
+    function calculateAnalytics() {
+        const temperatures = currentRecords.map(r => r.temperature).filter(Boolean);
+        const moodScores = currentRecords.map(r => r.moodScore).filter(Boolean);
+
+        return {
+            totalRecords: currentRecords.length,
+            avgTemperature: temperatures.length > 0 
+                ? temperatures.reduce((a, b) => a + b, 0) / temperatures.length 
+                : 0,
+            avgMoodScore: moodScores.length > 0
+                ? moodScores.reduce((a, b) => a + b, 0) / moodScores.length
+                : 0
+        };
     }
 </script>
