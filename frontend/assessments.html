@@ -1,0 +1,348 @@
+<div class="container mx-auto px-4 py-8">
+    <div class="max-w-6xl mx-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-gray-800">アセスメント管理</h2>
+            <div class="space-x-4">
+                <button onclick="showCreateAssessmentModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition">
+                    ＋ 新規作成
+                </button>
+                <button onclick="loadPage('dashboard.html')" class="text-blue-600 hover:text-blue-800 font-medium">
+                    ← ダッシュボードに戻る
+                </button>
+            </div>
+        </div>
+
+        <!-- フィルター -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">利用者選択</label>
+                    <select id="filter-user" class="w-full px-4 py-2 border rounded-lg" onchange="filterAssessments()">
+                        <option value="">全ての利用者</option>
+                    </select>
+                </div>
+                <div class="flex items-end">
+                    <button onclick="filterAssessments()" class="w-full bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg transition">
+                        検索
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- アセスメント一覧 -->
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">アセスメント一覧</h3>
+            <div id="assessments-list" class="space-y-4">
+                <div class="text-center py-8 text-gray-500">読み込み中...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 新規作成モーダル -->
+<div id="create-assessment-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-bold text-gray-800">アセスメント新規作成</h3>
+            <button onclick="closeCreateAssessmentModal()" class="text-gray-500 hover:text-gray-700">
+                <span class="text-2xl">×</span>
+            </button>
+        </div>
+
+        <form id="create-assessment-form" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    利用者選択 <span class="text-red-500">*</span>
+                </label>
+                <select name="userId" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                    <option value="">選択してください</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    アセスメント日 <span class="text-red-500">*</span>
+                </label>
+                <input type="date" name="assessmentDate" required
+                       class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">生活状況</label>
+                <textarea name="livingCondition" rows="3"
+                          class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                          placeholder="現在の生活状況について記入してください"></textarea>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">健康状態</label>
+                <textarea name="healthCondition" rows="3"
+                          class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                          placeholder="健康状態について記入してください"></textarea>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">ADL（日常生活動作）</label>
+                <textarea name="adl" rows="3"
+                          class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                          placeholder="食事、排泄、入浴、移動などについて記入してください"></textarea>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">コミュニケーション能力</label>
+                <textarea name="communication" rows="3"
+                          class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                          placeholder="意思疎通の状況について記入してください"></textarea>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">社会参加状況</label>
+                <textarea name="socialParticipation" rows="3"
+                          class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                          placeholder="社会活動への参加状況について記入してください"></textarea>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">ニーズと課題</label>
+                <textarea name="needs" rows="3"
+                          class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                          placeholder="本人・家族のニーズと支援課題を記入してください"></textarea>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">支援方針</label>
+                <textarea name="supportPlan" rows="3"
+                          class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                          placeholder="今後の支援方針を記入してください"></textarea>
+            </div>
+
+            <div class="flex gap-4 mt-6">
+                <button type="submit"
+                        class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition">
+                    作成する
+                </button>
+                <button type="button" onclick="closeCreateAssessmentModal()"
+                        class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg transition">
+                    キャンセル
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 詳細表示モーダル -->
+<div id="view-assessment-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-bold text-gray-800">アセスメント詳細</h3>
+            <button onclick="closeViewAssessmentModal()" class="text-gray-500 hover:text-gray-700">
+                <span class="text-2xl">×</span>
+            </button>
+        </div>
+        <div id="assessment-detail-content" class="space-y-4">
+            <!-- 動的に生成 -->
+        </div>
+        <div class="mt-6">
+            <button onclick="closeViewAssessmentModal()"
+                    class="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg transition">
+                閉じる
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function loadPage(url) {
+        htmx.ajax('GET', url, { target: '#main-content', swap: 'innerHTML', pushUrl: true });
+    }
+
+    let allAssessments = [];
+    let allUsers = [];
+
+    (async function initAssessments() {
+        try {
+            const currentUser = await window.WhaleStorage.getCurrentUser();
+            if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'staff')) {
+                window.showToast('権限がありません', 'error');
+                loadPage('dashboard.html');
+                return;
+            }
+
+            // ユーザー一覧取得
+            allUsers = await window.WhaleStorage.getUsers();
+            const serviceUsers = allUsers.filter(u => u.role === 'user');
+
+            // ユーザー選択肢を設定
+            const userSelects = document.querySelectorAll('select[name="userId"], #filter-user');
+            userSelects.forEach(select => {
+                if (select.name === 'userId') {
+                    select.innerHTML = '<option value="">選択してください</option>' +
+                        serviceUsers.map(u => `<option value="${u._id}">${u.name}</option>`).join('');
+                } else {
+                    select.innerHTML = '<option value="">全ての利用者</option>' +
+                        serviceUsers.map(u => `<option value="${u._id}">${u.name}</option>`).join('');
+                }
+            });
+
+            await loadAssessments();
+
+            // フォーム送信
+            document.getElementById('create-assessment-form').addEventListener('submit', handleCreateAssessment);
+
+        } catch (error) {
+            console.error('Assessments init error:', error);
+            window.showToast('初期化エラー: ' + error.message, 'error');
+        }
+    })();
+
+    async function loadAssessments() {
+        try {
+            const assessments = await window.WhaleStorage.getAssessments();
+            allAssessments = assessments;
+            displayAssessments(assessments);
+        } catch (error) {
+            console.error('Load assessments error:', error);
+            window.showToast('アセスメントの読み込みに失敗しました: ' + error.message, 'error');
+        }
+    }
+
+    function displayAssessments(assessments) {
+        const container = document.getElementById('assessments-list');
+
+        if (assessments.length === 0) {
+            container.innerHTML = '<div class="text-center py-8 text-gray-500">アセスメントがありません</div>';
+            return;
+        }
+
+        container.innerHTML = assessments.map(assessment => {
+            const user = allUsers.find(u => u._id === assessment.userId);
+            return `
+                <div class="border rounded-lg p-4 hover:bg-gray-50 transition cursor-pointer"
+                     onclick="viewAssessment('${assessment._id}')">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <div class="font-semibold text-gray-900">${user ? user.name : '不明'}</div>
+                            <div class="text-sm text-gray-600 mt-1">
+                                作成日: ${assessment.assessmentDate ? new Date(assessment.assessmentDate).toLocaleDateString('ja-JP') : '-'}
+                            </div>
+                            <div class="text-sm text-gray-500 mt-1">
+                                ${assessment.needs ? assessment.needs.substring(0, 100) + '...' : 'ニーズ未記入'}
+                            </div>
+                        </div>
+                        <button class="text-blue-600 hover:text-blue-800 text-sm">
+                            詳細 →
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function filterAssessments() {
+        const filterUserId = document.getElementById('filter-user').value;
+
+        const filtered = filterUserId
+            ? allAssessments.filter(a => a.userId === filterUserId)
+            : allAssessments;
+
+        displayAssessments(filtered);
+    }
+
+    function showCreateAssessmentModal() {
+        document.getElementById('create-assessment-modal').classList.remove('hidden');
+        // 今日の日付を設定
+        document.querySelector('input[name="assessmentDate"]').valueAsDate = new Date();
+    }
+
+    function closeCreateAssessmentModal() {
+        document.getElementById('create-assessment-modal').classList.add('hidden');
+        document.getElementById('create-assessment-form').reset();
+    }
+
+    async function handleCreateAssessment(e) {
+        e.preventDefault();
+
+        try {
+            const formData = new FormData(e.target);
+            const assessmentData = {
+                userId: formData.get('userId'),
+                assessmentDate: formData.get('assessmentDate'),
+                livingCondition: formData.get('livingCondition'),
+                healthCondition: formData.get('healthCondition'),
+                adl: formData.get('adl'),
+                communication: formData.get('communication'),
+                socialParticipation: formData.get('socialParticipation'),
+                needs: formData.get('needs'),
+                supportPlan: formData.get('supportPlan')
+            };
+
+            await window.WhaleStorage.createAssessment(assessmentData);
+            window.showToast('アセスメントを作成しました', 'success');
+            closeCreateAssessmentModal();
+            await loadAssessments();
+
+        } catch (error) {
+            console.error('Create assessment error:', error);
+            window.showToast('作成エラー: ' + error.message, 'error');
+        }
+    }
+
+    function viewAssessment(assessmentId) {
+        const assessment = allAssessments.find(a => a._id === assessmentId);
+        if (!assessment) return;
+
+        const user = allUsers.find(u => u._id === assessment.userId);
+
+        const content = `
+            <div class="space-y-4">
+                <div>
+                    <label class="text-sm text-gray-600 font-medium">利用者</label>
+                    <div class="mt-1">${user ? user.name : '不明'}</div>
+                </div>
+                <div>
+                    <label class="text-sm text-gray-600 font-medium">アセスメント日</label>
+                    <div class="mt-1">${assessment.assessmentDate ? new Date(assessment.assessmentDate).toLocaleDateString('ja-JP') : '-'}</div>
+                </div>
+                <div>
+                    <label class="text-sm text-gray-600 font-medium">生活状況</label>
+                    <div class="mt-1 text-gray-800">${assessment.livingCondition || '-'}</div>
+                </div>
+                <div>
+                    <label class="text-sm text-gray-600 font-medium">健康状態</label>
+                    <div class="mt-1 text-gray-800">${assessment.healthCondition || '-'}</div>
+                </div>
+                <div>
+                    <label class="text-sm text-gray-600 font-medium">ADL（日常生活動作）</label>
+                    <div class="mt-1 text-gray-800">${assessment.adl || '-'}</div>
+                </div>
+                <div>
+                    <label class="text-sm text-gray-600 font-medium">コミュニケーション能力</label>
+                    <div class="mt-1 text-gray-800">${assessment.communication || '-'}</div>
+                </div>
+                <div>
+                    <label class="text-sm text-gray-600 font-medium">社会参加状況</label>
+                    <div class="mt-1 text-gray-800">${assessment.socialParticipation || '-'}</div>
+                </div>
+                <div>
+                    <label class="text-sm text-gray-600 font-medium">ニーズと課題</label>
+                    <div class="mt-1 text-gray-800">${assessment.needs || '-'}</div>
+                </div>
+                <div>
+                    <label class="text-sm text-gray-600 font-medium">支援方針</label>
+                    <div class="mt-1 text-gray-800">${assessment.supportPlan || '-'}</div>
+                </div>
+                <div>
+                    <label class="text-sm text-gray-600 font-medium">作成日時</label>
+                    <div class="mt-1 text-sm">${assessment.createdAt ? new Date(assessment.createdAt).toLocaleString('ja-JP') : '-'}</div>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('assessment-detail-content').innerHTML = content;
+        document.getElementById('view-assessment-modal').classList.remove('hidden');
+    }
+
+    function closeViewAssessmentModal() {
+        document.getElementById('view-assessment-modal').classList.add('hidden');
+    }
+</script>
