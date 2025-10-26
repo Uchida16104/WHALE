@@ -1,26 +1,17 @@
 /**
- * WHALE Authentication Manager
- * クライアントサイド認証管理
- * @version 2.0.0
+ * WHALE Authentication Manager - バックエンド統合版
+ * @version 2.1.0
  */
 
 class WhaleAuthManager {
     constructor() {
-        this.currentUser = null;
-        this.sessionTimeout = 60 * 60 * 1000; // 1時間
-        this.sessionTimer = null;
+        this.api = null;
+        this.storage = null;
     }
 
-    /**
-     * パスワードハッシュ化（簡易版）
-     * 本番環境ではバックエンドで行うべき
-     */
-    async hashPassword(password) {
-        const encoder = new TextEncoder();
-        const data = encoder.encode(password);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    init() {
+        this.api = window.WhaleAPI;
+        this.storage = window.WhaleStorage;
     }
 
     /**
@@ -30,59 +21,40 @@ class WhaleAuthManager {
         try {
             console.log('📝 Registering new organization and user...');
 
-            // 組織情報検証
-            const existingOrg = await window.WhaleStorage.getOrganization(
-                formData.organizationId
-            );
+            const registrationData = {
+                organization: {
+                    organizationId: formData.organizationId,
+                    name: formData.organizationName,
+                    postalCode: formData.organizationPostalCode,
+                    address: formData.organizationAddress,
+                    phone: formData.organizationPhone,
+                    establishedDate: formData.organizationEstablishedDate
+                },
+                admin: {
+                    userId: formData.adminUserId,
+                    name: formData.adminName,
+                    nameKana: formData.adminNameKana,
+                    postalCode: formData.adminPostalCode,
+                    address: formData.adminAddress,
+                    phone: formData.adminPhone,
+                    birthday: formData.adminBirthday,
+                    password: formData.adminPassword
+                }
+            };
 
-            if (existingOrg) {
-                throw new Error('この施設機関IDは既に使用されています');
+            const result = await this.api.register(registrationData);
+
+            if (result.success) {
+                this.storage.setCurrentUser(result.user);
+                this.storage.setLocal('sessionStart', new Date().toISOString());
+                
+                window.dispatchEvent(new CustomEvent('whale:login', {
+                    detail: { user: result.user }
+                }));
             }
 
-            // パスワードハッシュ化
-            const passwordHash = await this.hashPassword(formData.adminPassword);
+            return result;
 
-            // 組織作成
-            const organization = await window.WhaleStorage.createOrganization({
-                organizationId: formData.organizationId,
-                name: formData.organizationName,
-                postalCode: formData.organizationPostalCode,
-                address: formData.organizationAddress,
-                phone: formData.organizationPhone,
-                establishedDate: formData.organizationEstablishedDate
-            });
-
-            console.log('✅ Organization created:', organization._id);
-
-            // 管理者ユーザー作成
-            const user = await window.WhaleStorage.createUser({
-                userId: formData.adminUserId,
-                organizationId: formData.organizationId,
-                name: formData.adminName,
-                nameKana: formData.adminNameKana,
-                role: 'admin',
-                postalCode: formData.adminPostalCode,
-                address: formData.adminAddress,
-                phone: formData.adminPhone,
-                birthday: formData.adminBirthday,
-                passwordHash: passwordHash
-            });
-
-            console.log('✅ Admin user created:', user._id);
-
-            // 自動ログイン
-            await this.login({
-                organizationId: formData.organizationId,
-                userId: formData.adminUserId,
-                password: formData.adminPassword
-            });
-
-            return {
-                success: true,
-                message: '登録が完了しました',
-                organization: organization,
-                user: user
-            };
         } catch (error) {
             console.error('❌ Registration error:', error);
             throw error;
@@ -96,87 +68,23 @@ class WhaleAuthManager {
         try {
             console.log('🔐 Logging in...');
 
-            // 組織確認
-            const organization = await window.WhaleStorage.getOrganization(
-                credentials.organizationId
-            );
+            const result = await this.api.login(credentials);
 
-            if (!organization) {
-                throw new Error('施設機関IDが見つかりません');
+            if (result.success) {
+                this.storage.setCurrentUser(result.user);
+                this.storage.setLocal('sessionStart', new Date().toISOString());
+                
+                window.dispatchEvent(new CustomEvent('whale:login', {
+                    detail: { user: result.user }
+                }));
             }
 
-            // ユーザー取得
-            const user = await window.WhaleStorage.getUserByCredentials(
-                credentials.organizationId,
-                credentials.userId
-            );
+            return result;
 
-            if (!user) {
-                throw new Error('ユーザーIDが見つかりません');
-            }
-
-            // パスワード検証
-            const passwordHash = await this.hashPassword(credentials.password);
-            if (passwordHash !== user.passwordHash) {
-                throw new Error('パスワードが正しくありません');
-            }
-
-            // セッション開始
-            this.startSession(user);
-
-            console.log('✅ Login successful:', user.name);
-
-            return {
-                success: true,
-                user: user,
-                organization: organization
-            };
         } catch (error) {
             console.error('❌ Login error:', error);
             throw error;
         }
-    }
-
-    /**
-     * セッション開始
-     */
-    startSession(user) {
-        this.currentUser = user;
-
-        // セッション情報保存
-        window.WhaleStorage.setLocal('currentUserId', user._id);
-        window.WhaleStorage.setLocal('sessionStart', new Date().toISOString());
-        window.WhaleStorage.setLocal('isAuthenticated', true);
-
-        // セッションタイマー開始
-        this.resetSessionTimer();
-
-        // イベント発火
-        window.dispatchEvent(new CustomEvent('whale:login', { 
-            detail: { user: user } 
-        }));
-    }
-
-    /**
-     * セッションタイマーリセット
-     */
-    resetSessionTimer() {
-        if (this.sessionTimer) {
-            clearTimeout(this.sessionTimer);
-        }
-
-        this.sessionTimer = setTimeout(() => {
-            this.handleSessionTimeout();
-        }, this.sessionTimeout);
-    }
-
-    /**
-     * セッションタイムアウト処理
-     */
-    handleSessionTimeout() {
-        console.warn('⏱️ Session timeout');
-        this.logout();
-        window.location.href = 'login.html?timeout=1';
     }
 
     /**
@@ -186,25 +94,14 @@ class WhaleAuthManager {
         try {
             console.log('🚪 Logging out...');
 
-            // セッション情報削除
-            window.WhaleStorage.removeLocal('currentUserId');
-            window.WhaleStorage.removeLocal('sessionStart');
-            window.WhaleStorage.removeLocal('isAuthenticated');
+            this.api.clearToken();
+            this.storage.clearCurrentUser();
+            this.storage.removeLocal('sessionStart');
 
-            // タイマークリア
-            if (this.sessionTimer) {
-                clearTimeout(this.sessionTimer);
-                this.sessionTimer = null;
-            }
-
-            this.currentUser = null;
-
-            // イベント発火
             window.dispatchEvent(new CustomEvent('whale:logout'));
 
-            console.log('✅ Logout successful');
-
             return { success: true };
+
         } catch (error) {
             console.error('❌ Logout error:', error);
             throw error;
@@ -216,34 +113,22 @@ class WhaleAuthManager {
      */
     async checkAuth() {
         try {
-            const isAuthenticated = window.WhaleStorage.getLocal('isAuthenticated');
-            const currentUserId = window.WhaleStorage.getLocal('currentUserId');
-            const sessionStart = window.WhaleStorage.getLocal('sessionStart');
-
-            if (!isAuthenticated || !currentUserId || !sessionStart) {
+            const token = this.api.getToken();
+            if (!token) {
                 return false;
             }
 
-            // セッション有効期限チェック
-            const sessionAge = Date.now() - new Date(sessionStart).getTime();
-            if (sessionAge > this.sessionTimeout) {
-                await this.logout();
-                return false;
+            const result = await this.api.verifyToken();
+            if (result.success) {
+                this.storage.setCurrentUser(result.user);
+                return true;
             }
 
-            // ユーザー情報取得
-            this.currentUser = await window.WhaleStorage.get(currentUserId);
-            if (!this.currentUser) {
-                await this.logout();
-                return false;
-            }
+            return false;
 
-            // セッションタイマー再開
-            this.resetSessionTimer();
-
-            return true;
         } catch (error) {
             console.error('❌ Auth check error:', error);
+            this.api.clearToken();
             return false;
         }
     }
@@ -251,15 +136,16 @@ class WhaleAuthManager {
     /**
      * 現在のユーザー取得
      */
-    getCurrentUser() {
-        return this.currentUser;
+    async getCurrentUser() {
+        return await this.storage.getCurrentUser();
     }
 
     /**
      * 権限チェック
      */
-    hasRole(role) {
-        if (!this.currentUser) return false;
+    async hasRole(role) {
+        const user = await this.getCurrentUser();
+        if (!user) return false;
 
         const roles = {
             'user': ['user'],
@@ -267,82 +153,39 @@ class WhaleAuthManager {
             'admin': ['user', 'staff', 'admin']
         };
 
-        return roles[this.currentUser.role]?.includes(role) || false;
+        return roles[user.role]?.includes(role) || false;
     }
 
     /**
      * 管理者チェック
      */
-    isAdmin() {
-        return this.currentUser?.role === 'admin';
+    async isAdmin() {
+        const user = await this.getCurrentUser();
+        return user?.role === 'admin';
     }
 
     /**
      * 職員チェック
      */
-    isStaff() {
-        return this.currentUser?.role === 'staff' || this.currentUser?.role === 'admin';
+    async isStaff() {
+        const user = await this.getCurrentUser();
+        return user?.role === 'staff' || user?.role === 'admin';
     }
 
     /**
      * 利用者チェック
      */
-    isUser() {
-        return this.currentUser?.role === 'user';
-    }
-
-    /**
-     * パスワード変更
-     */
-    async changePassword(oldPassword, newPassword) {
-        try {
-            if (!this.currentUser) {
-                throw new Error('ログインしていません');
-            }
-
-            // 現在のパスワード検証
-            const oldHash = await this.hashPassword(oldPassword);
-            if (oldHash !== this.currentUser.passwordHash) {
-                throw new Error('現在のパスワードが正しくありません');
-            }
-
-            // 新しいパスワード設定
-            const newHash = await this.hashPassword(newPassword);
-            await window.WhaleStorage.update(this.currentUser._id, {
-                passwordHash: newHash,
-                passwordChangedAt: new Date().toISOString()
-            });
-
-            console.log('✅ Password changed successfully');
-
-            return { success: true, message: 'パスワードを変更しました' };
-        } catch (error) {
-            console.error('❌ Password change error:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * アクティビティ記録
-     */
-    recordActivity() {
-        if (this.currentUser) {
-            window.WhaleStorage.setLocal('lastActivity', new Date().toISOString());
-            this.resetSessionTimer();
-        }
+    async isUser() {
+        const user = await this.getCurrentUser();
+        return user?.role === 'user';
     }
 }
 
-// グローバルインスタンス作成
 window.WhaleAuth = new WhaleAuthManager();
 
-// アクティビティ監視
-['mousedown', 'keydown', 'scroll', 'touchstart'].forEach(event => {
-    document.addEventListener(event, () => {
-        if (window.WhaleAuth.currentUser) {
-            window.WhaleAuth.recordActivity();
-        }
-    }, { passive: true });
+// 初期化
+document.addEventListener('DOMContentLoaded', () => {
+    window.WhaleAuth.init();
 });
 
 console.log('🐋 WHALE Auth Manager loaded');
