@@ -43,47 +43,23 @@
             <div class="bg-white border rounded-lg p-6">
                 <h3 class="text-lg font-semibold text-gray-800 mb-4">食事</h3>
                 <div class="space-y-4">
-                    <div class="border-b pb-4">
-                        <div class="flex items-center space-x-4 mb-2">
-                            <label class="flex items-center">
-                                <input type="checkbox" name="breakfast" value="1" class="w-5 h-5 text-blue-600 rounded">
-                                <span class="ml-2 font-medium">朝食</span>
-                            </label>
-                            <label class="text-sm text-gray-600">
-                                食欲: <input type="range" name="breakfastAppetite" min="1" max="10" value="5" class="ml-2 w-32">
-                                <span class="ml-2" id="breakfast-appetite-value">5</span>/10
-                            </label>
-                        </div>
-                        <textarea name="breakfastContent" rows="2" placeholder="食事内容"
-                                  class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"></textarea>
+                    <div class="flex items-center space-x-4">
+                        <label class="flex items-center">
+                            <input type="checkbox" name="breakfast" value="1" class="w-5 h-5 text-blue-600 rounded">
+                            <span class="ml-2 font-medium">朝食</span>
+                        </label>
                     </div>
-                    <div class="border-b pb-4">
-                        <div class="flex items-center space-x-4 mb-2">
-                            <label class="flex items-center">
-                                <input type="checkbox" name="lunch" value="1" class="w-5 h-5 text-blue-600 rounded">
-                                <span class="ml-2 font-medium">昼食</span>
-                            </label>
-                            <label class="text-sm text-gray-600">
-                                食欲: <input type="range" name="lunchAppetite" min="1" max="10" value="5" class="ml-2 w-32">
-                                <span class="ml-2" id="lunch-appetite-value">5</span>/10
-                            </label>
-                        </div>
-                        <textarea name="lunchContent" rows="2" placeholder="食事内容"
-                                  class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"></textarea>
+                    <div class="flex items-center space-x-4">
+                        <label class="flex items-center">
+                            <input type="checkbox" name="lunch" value="1" class="w-5 h-5 text-blue-600 rounded">
+                            <span class="ml-2 font-medium">昼食</span>
+                        </label>
                     </div>
-                    <div class="border-b pb-4">
-                        <div class="flex items-center space-x-4 mb-2">
-                            <label class="flex items-center">
-                                <input type="checkbox" name="dinner" value="1" class="w-5 h-5 text-blue-600 rounded">
-                                <span class="ml-2 font-medium">夕食</span>
-                            </label>
-                            <label class="text-sm text-gray-600">
-                                食欲: <input type="range" name="dinnerAppetite" min="1" max="10" value="5" class="ml-2 w-32">
-                                <span class="ml-2" id="dinner-appetite-value">5</span>/10
-                            </label>
-                        </div>
-                        <textarea name="dinnerContent" rows="2" placeholder="食事内容"
-                                  class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"></textarea>
+                    <div class="flex items-center space-x-4">
+                        <label class="flex items-center">
+                            <input type="checkbox" name="dinner" value="1" class="w-5 h-5 text-blue-600 rounded">
+                            <span class="ml-2 font-medium">夕食</span>
+                        </label>
                     </div>
                 </div>
             </div>
@@ -162,62 +138,6 @@
                         <span class="ml-2">運動</span>
                     </label>
                 </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">運動内容</label>
-                        <input type="text" name="exerciseType" placeholder="散歩、体操など"
-                               class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">歩数</label>
-                        <input type="number" name="steps" placeholder="0"
-                               class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
-                    </div>
-                </div>
-            </div>
-
-            <!-- 気付き・コミュニケーション -->
-            <div class="bg-white border rounded-lg p-6">
-                <h3 class="text-lg font-semibold text-gray-800 mb-4">気付き・コミュニケーション</h3>
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">思ったこと</label>
-                        <textarea name="thoughts" rows="2" placeholder="今日思ったことを自由に記入してください"
-                                  class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"></textarea>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">感じたこと</label>
-                        <textarea name="feelings" rows="2" placeholder="今日感じたことを自由に記入してください"
-                                  class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"></textarea>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">心配事</label>
-                        <textarea name="concerns" rows="2" placeholder="心配なことがあれば記入してください"
-                                  class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"></textarea>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">相談したいこと</label>
-                        <textarea name="consultation" rows="2" placeholder="職員に相談したいことがあれば記入してください"
-                                  class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"></textarea>
-                    </div>
-                </div>
-            </div>
-
-            <!-- できたこと・改善したいこと -->
-            <div class="bg-white border rounded-lg p-6">
-                <h3 class="text-lg font-semibold text-gray-800 mb-4">できたこと・改善したいこと</h3>
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">今日できたこと</label>
-                        <textarea name="achievements" rows="3" placeholder="今日達成できたことを記入してください"
-                                  class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"></textarea>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">より良くしたいこと</label>
-                        <textarea name="improvements" rows="3" placeholder="改善したいことを記入してください"
-                                  class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"></textarea>
-                    </div>
-                </div>
             </div>
 
             <!-- ボタン -->
@@ -225,10 +145,6 @@
                 <button type="submit" id="save-button"
                         class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition disabled:opacity-50">
                     保存する
-                </button>
-                <button type="button" onclick="loadPreviousData()"
-                        class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 px-6 rounded-lg transition">
-                    前回データ読込
                 </button>
             </div>
         </form>
@@ -238,16 +154,15 @@
 </div>
 
 <script>
-    // ページ読み込み関数
     function loadPage(url) {
         htmx.ajax('GET', url, { target: '#main-content', swap: 'innerHTML', pushUrl: true });
     }
 
-    // 初期化
     (async function initDailyRecord() {
         try {
             const user = await window.WhaleStorage.getCurrentUser();
             if (!user) {
+                window.showToast('ログインが必要です', 'error');
                 window.location.href = 'login.html';
                 return;
             }
@@ -259,47 +174,33 @@
 
             // 今日の記録取得
             const record = await window.WhaleStorage.getTodayRecord(user._id);
-            if (record && record._id) {
+            if (record) {
                 loadRecordData(record);
             }
 
             // スライダー設定
-            setupSliders();
+            const moodSlider = document.getElementById('mood-score');
+            const moodDisplay = document.getElementById('mood-score-value');
+            if (moodSlider && moodDisplay) {
+                moodSlider.addEventListener('input', () => moodDisplay.textContent = moodSlider.value);
+            }
 
             // フォーム送信
             setupFormSubmit(user);
 
         } catch (error) {
             console.error('Daily record initialization error:', error);
-            window.showToast('初期化エラーが発生しました', 'error');
+            window.showToast('初期化エラーが発生しました: ' + error.message, 'error');
         }
     })();
 
-    // スライダー設定
-    function setupSliders() {
-        ['breakfast', 'lunch', 'dinner'].forEach(meal => {
-            const slider = document.querySelector(`input[name="${meal}Appetite"]`);
-            const display = document.getElementById(`${meal}-appetite-value`);
-            if (slider && display) {
-                slider.addEventListener('input', () => display.textContent = slider.value);
-            }
-        });
-
-        const moodSlider = document.getElementById('mood-score');
-        const moodDisplay = document.getElementById('mood-score-value');
-        if (moodSlider && moodDisplay) {
-            moodSlider.addEventListener('input', () => moodDisplay.textContent = moodSlider.value);
-        }
-    }
-
-    // 記録データ読み込み
     function loadRecordData(record) {
         const form = document.getElementById('daily-record-form');
         Object.keys(record).forEach(key => {
             const input = form.elements[key];
             if (input) {
                 if (input.type === 'checkbox') {
-                    input.checked = record[key] === true || record[key] === '1';
+                    input.checked = record[key] === true || record[key] === '1' || record[key] === 1;
                 } else {
                     input.value = record[key] || '';
                 }
@@ -307,32 +208,6 @@
         });
     }
 
-    // 前回データ読み込み
-    async function loadPreviousData() {
-        try {
-            const user = await window.WhaleStorage.getCurrentUser();
-            const yesterday = new Date();
-            yesterday.setDate(yesterday.getDate() - 1);
-            
-            const records = await window.WhaleStorage.getDailyRecords(
-                user._id,
-                yesterday.toISOString().split('T')[0],
-                yesterday.toISOString().split('T')[0]
-            );
-
-            if (records.length > 0) {
-                loadRecordData(records[0]);
-                window.showToast('前回のデータを読み込みました', 'success');
-            } else {
-                window.showToast('前回のデータがありません', 'info');
-            }
-        } catch (error) {
-            console.error('Load previous data error:', error);
-            window.showToast('データ読み込みエラー', 'error');
-        }
-    }
-
-    // フォーム送信設定
     function setupFormSubmit(user) {
         const form = document.getElementById('daily-record-form');
         const button = document.getElementById('save-button');
@@ -347,7 +222,6 @@
                 const formData = new FormData(form);
                 const data = {
                     userId: user._id,
-                    organizationId: user.organizationId,
                     recordDate: new Date().toISOString().split('T')[0]
                 };
 
@@ -373,7 +247,7 @@
 
             } catch (error) {
                 console.error('Save error:', error);
-                window.showToast('保存エラーが発生しました', 'error');
+                window.showToast('保存エラーが発生しました: ' + error.message, 'error');
             } finally {
                 button.disabled = false;
                 button.textContent = '保存する';
