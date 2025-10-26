@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>新規登録 - WHALE</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://cdn.jsdelivr.net/npm/pouchdb@8.0.1/dist/pouchdb.min.js"></script>
     <!-- PouchDB Find Plugin (CRITICAL) -->
     <script src="https://cdn.jsdelivr.net/npm/pouchdb@8.0.1/dist/pouchdb.find.min.js"></script>
@@ -201,35 +200,25 @@
         </div>
     </div>
 
+    <script>
+        window.WHALE = {
+            API_URL: 'https://whale-backend-84p5.onrender.com',
+            VERSION: '2.1.0'
+        };
+    </script>
+
+    <script type="module" src="js/api.js"></script>
     <script type="module" src="js/storage.js"></script>
     <script type="module" src="js/auth.js"></script>
 
-    <script>
-        // グローバル変数
-        window.WHALE = {
-            API_URL: 'https://whale-backend-84p5.onrender.com',
-            GITHUB_PAGES_URL: 'https://uchida16104.github.io/WHALE',
-            VERSION: '2.0.0'
-        };
-
-        // 初期化
+    <script type="module">
         document.addEventListener('DOMContentLoaded', async () => {
             console.log('🐋 Register page loaded');
 
             try {
-                // PouchDB Find Plugin確認
-                if (typeof PouchDB === 'undefined') {
-                    throw new Error('PouchDB is not loaded');
-                }
-                
-                const testDb = new PouchDB('test_register_db');
-                if (typeof testDb.find !== 'function') {
-                    throw new Error('PouchDB Find Plugin is required');
-                }
-                await testDb.destroy();
-                console.log('✅ PouchDB Find Plugin confirmed');
+                // モジュール初期化待機
+                await new Promise(resolve => setTimeout(resolve, 100));
 
-                // ストレージ初期化
                 await window.WhaleStorage.init();
 
                 const form = document.getElementById('register-form');
@@ -261,7 +250,6 @@
                         return;
                     }
 
-                    // ボタン無効化
                     button.disabled = true;
                     button.textContent = '登録中...';
                     errorDiv.classList.add('hidden');
@@ -286,12 +274,10 @@
                             adminPassword: formData.get('adminPassword')
                         };
 
-                        // バリデーション
                         if (!registrationData.organizationName || !registrationData.organizationId) {
                             throw new Error('必須項目を入力してください');
                         }
 
-                        // 登録実行
                         console.log('🔐 Attempting registration...');
                         const result = await window.WhaleAuth.register(registrationData);
 
@@ -300,7 +286,6 @@
                             successDiv.textContent = '登録が完了しました。ダッシュボードに移動します...';
                             successDiv.classList.remove('hidden');
 
-                            // 2秒後にダッシュボードへリダイレクト
                             setTimeout(() => {
                                 window.location.href = 'index.html';
                             }, 2000);
@@ -313,7 +298,6 @@
                         errorDiv.classList.remove('hidden');
                         window.scrollTo(0, 0);
 
-                        // ボタン有効化
                         button.disabled = false;
                         button.textContent = '登録する';
                     }
