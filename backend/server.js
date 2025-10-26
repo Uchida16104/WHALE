@@ -1,6 +1,7 @@
 /**
- * WHALE Backend Server - 修正版
- * @version 2.1.0
+ * WHALE Backend Server
+ * Node.js + Express API Server
+ * @version 2.0.0
  */
 
 const express = require('express');
@@ -9,7 +10,6 @@ const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
 const PDFDocument = require('pdfkit');
 const ExcelJS = require('exceljs');
 require('dotenv').config();
@@ -18,30 +18,27 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'whale-secret-key-change-in-production';
 
-// ==================== インメモリデータストア ====================
-// 本番環境では MongoDB/PostgreSQL などのDBを使用
-const dataStore = {
-    organizations: new Map(),
-    users: new Map(),
-    dailyRecords: new Map(),
-    attendanceRecords: new Map(),
-    assessments: new Map(),
-    servicePlans: new Map()
-};
-
 // ==================== ミドルウェア設定 ====================
 
+// セキュリティヘッダー
 app.use(helmet({
-    contentSecurityPolicy: false,
-    crossOriginEmbedderPolicy: false
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.tailwindcss.com"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com", "https://cdn.jsdelivr.net"],
+            imgSrc: ["'self'", "data:", "https:"],
+            connectSrc: ["'self'", "https://whale-backend-84p5.onrender.com"]
+        }
+    }
 }));
 
+// CORS設定
 const corsOptions = {
     origin: [
         'https://uchida16104.github.io/WHALE',
-        'http://localhost:8000',
-        'http://127.0.0.1:8000',
-        'http://localhost:3000'
+        'http://localhost:3000',
+        'http://127.0.0.1:3000'
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -50,17 +47,22 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
+// 圧縮
 app.use(compression());
+
+// JSONパーサー
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// レート制限
 const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 100,
-    message: { error: 'リクエストが多すぎます' }
+    windowMs: 15 * 60 * 1000, // 15分
+    max: 100, // 最大100リクエスト
+    message: { error: 'リクエストが多すぎます。しばらく待ってから再試行してください。' }
 });
 app.use('/api/', limiter);
 
+// リクエストログ
 app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
     next();
@@ -90,7 +92,7 @@ function authenticateToken(req, res, next) {
 app.get('/health', (req, res) => {
     res.json({
         status: 'healthy',
-        version: '2.1.0',
+        version: '2.0.0',
         timestamp: new Date().toISOString(),
         uptime: process.uptime()
     });
@@ -99,12 +101,11 @@ app.get('/health', (req, res) => {
 app.get('/', (req, res) => {
     res.json({
         name: 'WHALE Backend API',
-        version: '2.1.0',
+        version: '2.0.0',
         status: 'running',
         endpoints: {
             health: '/health',
             auth: '/api/auth/*',
-            data: '/api/data/*',
             sync: '/api/sync/*',
             export: '/api/export/*'
         }
@@ -113,93 +114,21 @@ app.get('/', (req, res) => {
 
 // ==================== 認証API ====================
 
-app.post('/api/auth/register', async (req, res) => {
-    try {
-        const { organization, admin } = req.body;
-
-        // 組織の重複チェック
-        if (dataStore.organizations.has(organization.organizationId)) {
-            return res.status(400).json({ error: 'この施設機関IDは既に使用されています' });
-        }
-
-        // 組織を保存
-        const orgData = {
-            ...organization,
-            createdAt: new Date().toISOString()
-        };
-        dataStore.organizations.set(organization.organizationId, orgData);
-
-        // 管理者ユーザーを保存
-        const passwordHash = await bcrypt.hash(admin.password, 10);
-        const userId = `${organization.organizationId}_${admin.userId}`;
-        const userData = {
-            ...admin,
-            _id: userId,
-            organizationId: organization.organizationId,
-            passwordHash,
-            role: 'admin',
-            createdAt: new Date().toISOString()
-        };
-        delete userData.password;
-        dataStore.users.set(userId, userData);
-
-        // JWTトークン生成
-        const token = jwt.sign(
-            {
-                userId: userId,
-                organizationId: organization.organizationId,
-                role: 'admin'
-            },
-            JWT_SECRET,
-            { expiresIn: '24h' }
-        );
-
-        res.json({
-            success: true,
-            token,
-            user: userData,
-            organization: orgData
-        });
-
-    } catch (error) {
-        console.error('Register error:', error);
-        res.status(500).json({ error: '登録処理に失敗しました' });
-    }
-});
-
 app.post('/api/auth/login', async (req, res) => {
     try {
-        const { organizationId, userId, password } = req.body;
+        const { organizationId, userId, passwordHash } = req.body;
 
-        if (!organizationId || !userId || !password) {
+        // バリデーション
+        if (!organizationId || !userId || !passwordHash) {
             return res.status(400).json({ error: '必須項目が不足しています' });
         }
 
-        // 組織の確認
-        const organization = dataStore.organizations.get(organizationId);
-        if (!organization) {
-            return res.status(401).json({ error: '施設機関IDが見つかりません' });
-        }
-
-        // ユーザーの確認
-        const fullUserId = `${organizationId}_${userId}`;
-        const user = dataStore.users.get(fullUserId);
-        if (!user) {
-            return res.status(401).json({ error: 'ユーザーIDが見つかりません' });
-        }
-
-        // パスワードの検証
-        const validPassword = await bcrypt.compare(password, user.passwordHash);
-        if (!validPassword) {
-            return res.status(401).json({ error: 'パスワードが正しくありません' });
-        }
-
         // JWTトークン生成
         const token = jwt.sign(
             {
-                userId: fullUserId,
-                organizationId: user.organizationId,
-                role: user.role
+                organizationId: organizationId,
+                userId: userId,
+                timestamp: Date.now()
             },
             JWT_SECRET,
             { expiresIn: '24h' }
@@ -207,14 +136,9 @@ app.post('/api/auth/login', async (req, res) => {
 
         res.json({
             success: true,
-            token,
-            user: {
-                ...user,
-                passwordHash: undefined
-            },
-            organization
+            token: token,
+            expiresIn: 86400 // 24時間（秒）
         });
-
     } catch (error) {
         console.error('Login error:', error);
         res.status(500).json({ error: 'ログイン処理に失敗しました' });
@@ -222,311 +146,74 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 app.post('/api/auth/verify', authenticateToken, (req, res) => {
-    const user = dataStore.users.get(req.user.userId);
-    if (!user) {
-        return res.status(404).json({ error: 'ユーザーが見つかりません' });
-    }
     res.json({
         success: true,
-        user: {
-            ...user,
-            passwordHash: undefined
-        }
+        user: req.user
     });
 });
 
-// ==================== データ管理API ====================
-
-// 日々の記録
-app.post('/api/data/daily-records', authenticateToken, async (req, res) => {
+app.post('/api/auth/refresh', authenticateToken, (req, res) => {
     try {
-        const record = {
-            ...req.body,
-            _id: `${req.body.userId}_${req.body.recordDate}`,
-            organizationId: req.user.organizationId,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-        };
-
-        dataStore.dailyRecords.set(record._id, record);
+        const newToken = jwt.sign(
+            {
+                organizationId: req.user.organizationId,
+                userId: req.user.userId,
+                timestamp: Date.now()
+            },
+            JWT_SECRET,
+            { expiresIn: '24h' }
+        );
 
         res.json({
             success: true,
-            record
+            token: newToken,
+            expiresIn: 86400
         });
-
     } catch (error) {
-        console.error('Save daily record error:', error);
-        res.status(500).json({ error: '記録の保存に失敗しました' });
+        console.error('Refresh error:', error);
+        res.status(500).json({ error: 'トークン更新に失敗しました' });
     }
 });
 
-app.get('/api/data/daily-records', authenticateToken, (req, res) => {
+// ==================== データ同期API ====================
+
+app.post('/api/sync/upload', authenticateToken, async (req, res) => {
     try {
-        const { userId, startDate, endDate } = req.query;
+        const { documents } = req.body;
 
-        let records = Array.from(dataStore.dailyRecords.values())
-            .filter(r => r.organizationId === req.user.organizationId);
-
-        if (userId) {
-            records = records.filter(r => r.userId === userId);
+        if (!documents || !Array.isArray(documents)) {
+            return res.status(400).json({ error: '無効なデータ形式です' });
         }
 
-        if (startDate && endDate) {
-            records = records.filter(r => 
-                r.recordDate >= startDate && r.recordDate <= endDate
-            );
-        }
+        // ここでCouchDBや他のデータベースに保存
+        // 現在はモック実装
 
         res.json({
             success: true,
-            records
+            uploaded: documents.length,
+            timestamp: new Date().toISOString()
         });
-
     } catch (error) {
-        console.error('Get daily records error:', error);
-        res.status(500).json({ error: '記録の取得に失敗しました' });
+        console.error('Upload error:', error);
+        res.status(500).json({ error: 'アップロードに失敗しました' });
     }
 });
 
-// 出席管理
-app.post('/api/data/attendance', authenticateToken, async (req, res) => {
+app.get('/api/sync/download', authenticateToken, async (req, res) => {
     try {
-        const record = {
-            ...req.body,
-            _id: `${req.body.userId}_${req.body.attendanceDate}`,
-            organizationId: req.user.organizationId,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-        };
+        const { since } = req.query;
 
-        dataStore.attendanceRecords.set(record._id, record);
+        // ここでCouchDBや他のデータベースから取得
+        // 現在はモック実装
 
         res.json({
             success: true,
-            record
+            documents: [],
+            timestamp: new Date().toISOString()
         });
-
     } catch (error) {
-        console.error('Save attendance error:', error);
-        res.status(500).json({ error: '出席記録の保存に失敗しました' });
-    }
-});
-
-app.get('/api/data/attendance', authenticateToken, (req, res) => {
-    try {
-        const { date } = req.query;
-
-        let records = Array.from(dataStore.attendanceRecords.values())
-            .filter(r => r.organizationId === req.user.organizationId);
-
-        if (date) {
-            records = records.filter(r => r.attendanceDate === date);
-        }
-
-        res.json({
-            success: true,
-            records
-        });
-
-    } catch (error) {
-        console.error('Get attendance error:', error);
-        res.status(500).json({ error: '出席記録の取得に失敗しました' });
-    }
-});
-
-// ユーザー管理
-app.get('/api/data/users', authenticateToken, (req, res) => {
-    try {
-        // 同じ組織のユーザーのみ取得
-        const users = Array.from(dataStore.users.values())
-            .filter(u => u.organizationId === req.user.organizationId)
-            .map(u => ({
-                ...u,
-                passwordHash: undefined
-            }));
-
-        // 利用者は自分自身のみ
-        if (req.user.role === 'user') {
-            const selfUser = users.find(u => u._id === req.user.userId);
-            return res.json({
-                success: true,
-                users: selfUser ? [selfUser] : []
-            });
-        }
-
-        res.json({
-            success: true,
-            users
-        });
-
-    } catch (error) {
-        console.error('Get users error:', error);
-        res.status(500).json({ error: 'ユーザーの取得に失敗しました' });
-    }
-});
-
-app.post('/api/data/users', authenticateToken, async (req, res) => {
-    try {
-        // 管理者のみ実行可能
-        if (req.user.role !== 'admin') {
-            return res.status(403).json({ error: '権限がありません' });
-        }
-
-        const { userId, password, ...userData } = req.body;
-        const passwordHash = await bcrypt.hash(password, 10);
-        const fullUserId = `${req.user.organizationId}_${userId}`;
-
-        const newUser = {
-            ...userData,
-            _id: fullUserId,
-            userId,
-            organizationId: req.user.organizationId,
-            passwordHash,
-            createdAt: new Date().toISOString()
-        };
-
-        dataStore.users.set(fullUserId, newUser);
-
-        res.json({
-            success: true,
-            user: {
-                ...newUser,
-                passwordHash: undefined
-            }
-        });
-
-    } catch (error) {
-        console.error('Create user error:', error);
-        res.status(500).json({ error: 'ユーザーの作成に失敗しました' });
-    }
-});
-
-app.put('/api/data/users/:id', authenticateToken, async (req, res) => {
-    try {
-        const user = dataStore.users.get(req.params.id);
-        if (!user) {
-            return res.status(404).json({ error: 'ユーザーが見つかりません' });
-        }
-
-        // 同じ組織かつ権限チェック
-        if (user.organizationId !== req.user.organizationId) {
-            return res.status(403).json({ error: '権限がありません' });
-        }
-
-        const updatedUser = {
-            ...user,
-            ...req.body,
-            _id: user._id,
-            organizationId: user.organizationId,
-            updatedAt: new Date().toISOString()
-        };
-
-        dataStore.users.set(req.params.id, updatedUser);
-
-        res.json({
-            success: true,
-            user: {
-                ...updatedUser,
-                passwordHash: undefined
-            }
-        });
-
-    } catch (error) {
-        console.error('Update user error:', error);
-        res.status(500).json({ error: 'ユーザーの更新に失敗しました' });
-    }
-});
-
-// アセスメント
-app.post('/api/data/assessments', authenticateToken, (req, res) => {
-    try {
-        const assessment = {
-            ...req.body,
-            _id: `assessment_${Date.now()}`,
-            organizationId: req.user.organizationId,
-            createdBy: req.user.userId,
-            createdAt: new Date().toISOString()
-        };
-
-        dataStore.assessments.set(assessment._id, assessment);
-
-        res.json({
-            success: true,
-            assessment
-        });
-
-    } catch (error) {
-        console.error('Create assessment error:', error);
-        res.status(500).json({ error: 'アセスメントの作成に失敗しました' });
-    }
-});
-
-app.get('/api/data/assessments', authenticateToken, (req, res) => {
-    try {
-        const { userId } = req.query;
-        
-        let assessments = Array.from(dataStore.assessments.values())
-            .filter(a => a.organizationId === req.user.organizationId);
-
-        if (userId) {
-            assessments = assessments.filter(a => a.userId === userId);
-        }
-
-        res.json({
-            success: true,
-            assessments
-        });
-
-    } catch (error) {
-        console.error('Get assessments error:', error);
-        res.status(500).json({ error: 'アセスメントの取得に失敗しました' });
-    }
-});
-
-// サービス計画
-app.post('/api/data/service-plans', authenticateToken, (req, res) => {
-    try {
-        const plan = {
-            ...req.body,
-            _id: `plan_${Date.now()}`,
-            organizationId: req.user.organizationId,
-            createdBy: req.user.userId,
-            createdAt: new Date().toISOString()
-        };
-
-        dataStore.servicePlans.set(plan._id, plan);
-
-        res.json({
-            success: true,
-            plan
-        });
-
-    } catch (error) {
-        console.error('Create service plan error:', error);
-        res.status(500).json({ error: 'サービス計画の作成に失敗しました' });
-    }
-});
-
-app.get('/api/data/service-plans', authenticateToken, (req, res) => {
-    try {
-        const { userId } = req.query;
-        
-        let plans = Array.from(dataStore.servicePlans.values())
-            .filter(p => p.organizationId === req.user.organizationId);
-
-        if (userId) {
-            plans = plans.filter(p => p.userId === userId);
-        }
-
-        res.json({
-            success: true,
-            plans
-        });
-
-    } catch (error) {
-        console.error('Get service plans error:', error);
-        res.status(500).json({ error: 'サービス計画の取得に失敗しました' });
+        console.error('Download error:', error);
+        res.status(500).json({ error: 'ダウンロードに失敗しました' });
     }
 });
 
@@ -536,22 +223,35 @@ app.post('/api/export/pdf', authenticateToken, async (req, res) => {
     try {
         const { records, analytics, organization } = req.body;
 
+        if (!records || !Array.isArray(records)) {
+            return res.status(400).json({ error: '無効なデータ形式です' });
+        }
+
+        // PDFDocument作成
         const doc = new PDFDocument({ size: 'A4', margin: 50 });
 
+        // ヘッダー設定
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader(
             'Content-Disposition',
             `attachment; filename=whale_report_${new Date().toISOString().split('T')[0]}.pdf`
         );
 
+        // PDFストリームをレスポンスにパイプ
         doc.pipe(res);
 
-        doc.fontSize(20).text('WHALE システムレポート', { align: 'center' }).moveDown();
+        // タイトル
+        doc.fontSize(20)
+           .text('WHALE システムレポート', { align: 'center' })
+           .moveDown();
+
+        // 基本情報
         doc.fontSize(12)
            .text(`生成日時: ${new Date().toLocaleString('ja-JP')}`)
            .text(`施設: ${organization?.name || ''}`)
            .moveDown();
 
+        // 統計情報
         if (analytics) {
             doc.fontSize(16).text('データ分析', { underline: true }).moveDown(0.5);
             doc.fontSize(12)
@@ -561,6 +261,7 @@ app.post('/api/export/pdf', authenticateToken, async (req, res) => {
                .moveDown();
         }
 
+        // 記録データ
         doc.fontSize(16).text('記録一覧', { underline: true }).moveDown(0.5);
 
         records.slice(0, 20).forEach((record, index) => {
@@ -576,6 +277,7 @@ app.post('/api/export/pdf', authenticateToken, async (req, res) => {
                .moveDown(0.5);
         });
 
+        // PDFファイナライズ
         doc.end();
 
     } catch (error) {
@@ -588,27 +290,50 @@ app.post('/api/export/excel', authenticateToken, async (req, res) => {
     try {
         const { records } = req.body;
 
+        if (!records || !Array.isArray(records)) {
+            return res.status(400).json({ error: '無効なデータ形式です' });
+        }
+
+        // Excelワークブック作成
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('日々の記録');
 
+        // ヘッダー設定
         worksheet.columns = [
             { header: '日付', key: 'recordDate', width: 12 },
             { header: '利用者', key: 'userName', width: 20 },
+            { header: '起床時間', key: 'wakeUpTime', width: 10 },
+            { header: '就寝時間', key: 'sleepTime', width: 10 },
             { header: '体温', key: 'temperature', width: 8 },
+            { header: '血圧(高)', key: 'bloodPressureHigh', width: 10 },
+            { header: '血圧(低)', key: 'bloodPressureLow', width: 10 },
             { header: '気分スコア', key: 'moodScore', width: 12 }
         ];
 
+        // スタイル設定
         worksheet.getRow(1).font = { bold: true };
         worksheet.getRow(1).fill = {
             type: 'pattern',
             pattern: 'solid',
             fgColor: { argb: 'FF4472C4' }
         };
+        worksheet.getRow(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
 
+        // データ追加
         records.forEach(record => {
-            worksheet.addRow(record);
+            worksheet.addRow({
+                recordDate: record.recordDate || '',
+                userName: record.userName || '',
+                wakeUpTime: record.wakeUpTime || '',
+                sleepTime: record.sleepTime || '',
+                temperature: record.temperature || '',
+                bloodPressureHigh: record.bloodPressureHigh || '',
+                bloodPressureLow: record.bloodPressureLow || '',
+                moodScore: record.moodScore || ''
+            });
         });
 
+        // レスポンスヘッダー設定
         res.setHeader(
             'Content-Type',
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -618,12 +343,146 @@ app.post('/api/export/excel', authenticateToken, async (req, res) => {
             `attachment; filename=whale_report_${new Date().toISOString().split('T')[0]}.xlsx`
         );
 
+        // Excelファイル書き込み
         await workbook.xlsx.write(res);
         res.end();
 
     } catch (error) {
         console.error('Excel export error:', error);
         res.status(500).json({ error: 'Excel生成に失敗しました' });
+    }
+});
+
+app.post('/api/export/csv', authenticateToken, async (req, res) => {
+    try {
+        const { records } = req.body;
+
+        if (!records || !Array.isArray(records)) {
+            return res.status(400).json({ error: '無効なデータ形式です' });
+        }
+
+        // CSVヘッダー
+        const headers = [
+            '日付', '利用者', '起床時間', '就寝時間', '通所時間', '退所時間',
+            '朝食', '昼食', '夕食', '体温', '血圧(高)', '血圧(低)', '脈拍',
+            'SpO2', '気分スコア', '運動', '入浴'
+        ];
+
+        // CSV生成
+        let csv = headers.join(',') + '\n';
+
+        records.forEach(record => {
+            const row = [
+                record.recordDate || '',
+                `"${record.userName || ''}"`,
+                record.wakeUpTime || '',
+                record.sleepTime || '',
+                record.arrivalTime || '',
+                record.departureTime || '',
+                record.breakfast ? '有' : '無',
+                record.lunch ? '有' : '無',
+                record.dinner ? '有' : '無',
+                record.temperature || '',
+                record.bloodPressureHigh || '',
+                record.bloodPressureLow || '',
+                record.pulse || '',
+                record.spo2 || '',
+                record.moodScore || '',
+                record.exercise ? '有' : '無',
+                record.bathing ? '有' : '無'
+            ];
+            csv += row.join(',') + '\n';
+        });
+
+        // レスポンス設定
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader(
+            'Content-Disposition',
+            `attachment; filename=whale_report_${new Date().toISOString().split('T')[0]}.csv`
+        );
+
+        // BOM追加（Excel対応）
+        res.write('\uFEFF');
+        res.write(csv);
+        res.end();
+
+    } catch (error) {
+        console.error('CSV export error:', error);
+        res.status(500).json({ error: 'CSV生成に失敗しました' });
+    }
+});
+
+// ==================== メール送信API ====================
+
+app.post('/api/mail/send', authenticateToken, async (req, res) => {
+    try {
+        const { to, subject, body } = req.body;
+
+        if (!to || !subject || !body) {
+            return res.status(400).json({ error: '必須項目が不足しています' });
+        }
+
+        // メール送信処理（SendGrid、Resend等の実装）
+        // 現在はモック実装
+
+        console.log('Email sent:', { to, subject });
+
+        res.json({
+            success: true,
+            message: 'メールを送信しました'
+        });
+    } catch (error) {
+        console.error('Email error:', error);
+        res.status(500).json({ error: 'メール送信に失敗しました' });
+    }
+});
+
+// ==================== 統計API ====================
+
+app.post('/api/analytics/calculate', authenticateToken, async (req, res) => {
+    try {
+        const { records } = req.body;
+
+        if (!records || !Array.isArray(records)) {
+            return res.status(400).json({ error: '無効なデータ形式です' });
+        }
+
+        // 統計計算
+        const temperatures = records.map(r => r.temperature).filter(Boolean);
+        const moodScores = records.map(r => r.moodScore).filter(Boolean);
+        const bloodPressureHigh = records.map(r => r.bloodPressureHigh).filter(Boolean);
+
+        const avgTemp = temperatures.length > 0 
+            ? temperatures.reduce((a, b) => a + b, 0) / temperatures.length 
+            : 0;
+
+        const avgMood = moodScores.length > 0
+            ? moodScores.reduce((a, b) => a + b, 0) / moodScores.length
+            : 0;
+
+        const avgBpHigh = bloodPressureHigh.length > 0
+            ? bloodPressureHigh.reduce((a, b) => a + b, 0) / bloodPressureHigh.length
+            : 0;
+
+        const analytics = {
+            totalRecords: records.length,
+            avgTemperature: avgTemp,
+            avgMoodScore: avgMood,
+            avgBloodPressureHigh: avgBpHigh,
+            breakfastRate: (records.filter(r => r.breakfast).length / records.length) * 100,
+            lunchRate: (records.filter(r => r.lunch).length / records.length) * 100,
+            dinnerRate: (records.filter(r => r.dinner).length / records.length) * 100,
+            exerciseRate: (records.filter(r => r.exercise).length / records.length) * 100,
+            bathingRate: (records.filter(r => r.bathing).length / records.length) * 100
+        };
+
+        res.json({
+            success: true,
+            analytics: analytics
+        });
+    } catch (error) {
+        console.error('Analytics error:', error);
+        res.status(500).json({ error: '統計計算に失敗しました' });
     }
 });
 
@@ -637,6 +496,7 @@ app.use((err, req, res, next) => {
     });
 });
 
+// 404ハンドラー
 app.use((req, res) => {
     res.status(404).json({
         error: 'エンドポイントが見つかりません',
@@ -649,13 +509,14 @@ app.use((req, res) => {
 app.listen(PORT, () => {
     console.log('🐋 WHALE Backend Server');
     console.log('=================================');
-    console.log(`Version: 2.1.0`);
+    console.log(`Version: 2.0.0`);
     console.log(`Port: ${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`Started at: ${new Date().toISOString()}`);
     console.log('=================================');
 });
 
+// グレースフルシャットダウン
 process.on('SIGTERM', () => {
     console.log('SIGTERM received, shutting down gracefully...');
     process.exit(0);
