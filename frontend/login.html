@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ログイン - WHALE</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://cdn.jsdelivr.net/npm/pouchdb@8.0.1/dist/pouchdb.min.js"></script>
     <!-- PouchDB Find Plugin (CRITICAL) -->
     <script src="https://cdn.jsdelivr.net/npm/pouchdb@8.0.1/dist/pouchdb.find.min.js"></script>
@@ -86,35 +85,25 @@
         </div>
     </div>
 
+    <script>
+        window.WHALE = {
+            API_URL: 'https://whale-backend-84p5.onrender.com',
+            VERSION: '2.1.0'
+        };
+    </script>
+
+    <script type="module" src="js/api.js"></script>
     <script type="module" src="js/storage.js"></script>
     <script type="module" src="js/auth.js"></script>
 
-    <script>
-        // グローバル変数
-        window.WHALE = {
-            API_URL: 'https://whale-backend-84p5.onrender.com',
-            GITHUB_PAGES_URL: 'https://uchida16104.github.io/WHALE',
-            VERSION: '2.0.0'
-        };
-
-        // 初期化
+    <script type="module">
         document.addEventListener('DOMContentLoaded', async () => {
             console.log('🐋 Login page loaded');
 
             try {
-                // PouchDB Find Plugin確認
-                if (typeof PouchDB === 'undefined') {
-                    throw new Error('PouchDB is not loaded');
-                }
-                
-                const testDb = new PouchDB('test_login_db');
-                if (typeof testDb.find !== 'function') {
-                    throw new Error('PouchDB Find Plugin is required');
-                }
-                await testDb.destroy();
-                console.log('✅ PouchDB Find Plugin confirmed');
+                // モジュール初期化待機
+                await new Promise(resolve => setTimeout(resolve, 100));
 
-                // ストレージ初期化
                 await window.WhaleStorage.init();
 
                 // タイムアウトメッセージ表示
@@ -138,7 +127,6 @@
                 form.addEventListener('submit', async (e) => {
                     e.preventDefault();
                     
-                    // ボタン無効化
                     button.disabled = true;
                     button.textContent = 'ログイン中...';
                     errorDiv.classList.add('hidden');
@@ -151,17 +139,14 @@
                             password: formData.get('password')
                         };
 
-                        // バリデーション
                         if (!credentials.organizationId || !credentials.userId || !credentials.password) {
                             throw new Error('全ての項目を入力してください');
                         }
 
-                        // ログイン実行
                         const result = await window.WhaleAuth.login(credentials);
 
                         if (result.success) {
                             console.log('✅ Login successful');
-                            // ダッシュボードへリダイレクト
                             window.location.href = 'index.html';
                         } else {
                             throw new Error('ログインに失敗しました');
@@ -171,16 +156,8 @@
                         errorDiv.textContent = error.message || '認証に失敗しました';
                         errorDiv.classList.remove('hidden');
                         
-                        // ボタン有効化
                         button.disabled = false;
                         button.textContent = 'ログイン';
-                    }
-                });
-
-                // Enterキーでログイン
-                form.addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter' && !button.disabled) {
-                        form.dispatchEvent(new Event('submit'));
                     }
                 });
 
