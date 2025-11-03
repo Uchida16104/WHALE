@@ -1,16 +1,19 @@
 /**
  * WHALE Storage Manager - 完全修正版
- * LocalStorage + PouchDB統合データ管理
- * @version 2.1.0
+ * LocalStorage + PouchDB統合データ管理 + リアルタイム同期
+ * @version 2.2.0
  */
 
 class WhaleStorageManager {
     constructor() {
-        this.version = '2.1.0';
+        this.version = '2.2.0';
         this.prefix = 'whale_';
         this.db = null;
+        this.remoteDb = null;
         this.syncHandler = null;
         this.initialized = false;
+        this.changeListeners = new Set();
+        this.syncInterval = null;
     }
 
     /**
@@ -28,7 +31,10 @@ class WhaleStorageManager {
             }
 
             // PouchDB初期化
-            this.db = new PouchDB('whale_database');
+            this.db = new PouchDB('whale_database', {
+                auto_compaction: true,
+                revs_limit: 10
+            });
             
             // Find Pluginの確認
             if (typeof this.db.find !== 'function') {
@@ -42,6 +48,12 @@ class WhaleStorageManager {
 
             // LocalStorage初期設定
             this.initLocalStorage();
+
+            // リアルタイム同期開始
+            await this.initRealtimeSync();
+
+            // 変更監視開始
+            this.startChangeListener();
 
             this.initialized = true;
             console.log('✅ Storage initialization complete');
@@ -61,7 +73,9 @@ class WhaleStorageManager {
             { fields: ['type', 'organizationId'] },
             { fields: ['type', 'recordDate'] },
             { fields: ['type', 'userId', 'recordDate'] },
-            { fields: ['type', 'organizationId', 'userId'] }
+            { fields: ['type', 'organizationId', 'userId'] },
+            { fields: ['type', 'attendanceDate'] },
+            { fields: ['updatedAt'] }
         ];
 
         for (const index of indexes) {
@@ -92,6 +106,127 @@ class WhaleStorageManager {
             this.setLocal('settings', defaults.settings);
         }
         this.setLocal('version', this.version);
+    }
+
+    /**
+     * リアルタイム同期初期化
+     */
+    async initRealtimeSync() {
+        try {
+            // バックエンドとの同期設定
+            const currentUser = await this.getCurrentUser();
+            if (!currentUser) return;
+
+            // 定期同期（5分ごと）
+            this.syncInterval = setInterval(async () => {
+                if (navigator.onLine) {
+                    await this.syncWithBackend();
+                }
+            }, 5 * 60 * 1000);
+
+            // オンライン復帰時の即時同期
+            window.addEventListener('online', async () => {
+                await this.syncWithBackend();
+            });
+
+            console.log('✅ Realtime sync initialized');
+        } catch (error) {
+            console.warn('Sync initialization warning:', error);
+        }
+    }
+
+    /**
+     * バックエンドとの同期
+     */
+    async syncWithBackend() {
+        try {
+            if (!navigator.onLine) return;
+
+            console.log('🔄 Syncing with backend...');
+
+            // 最終同期時刻取得
+            const lastSync = this.getLocal('lastSyncTime') || new Date(0).toISOString();
+
+            // 変更されたドキュメント取得
+            const changes = await this.db.find({
+                selector: {
+                    updatedAt: { $gt: lastSync }
+                },
+                limit: 100
+            });
+
+            if (changes.docs.length > 0) {
+                // バックエンドに送信
+                await fetch(`${window.WHALE.API_URL}/api/sync/upload`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${this.getLocal('authToken')}`
+                    },
+                    body: JSON.stringify({ documents: changes.docs })
+                });
+
+                console.log(`✅ Synced ${changes.docs.length} documents`);
+            }
+
+            // 最終同期時刻更新
+            this.setLocal('lastSyncTime', new Date().toISOString());
+
+            // 変更通知
+            this.notifyChange('sync', { synced: changes.docs.length });
+
+        } catch (error) {
+            console.error('Sync error:', error);
+        }
+    }
+
+    /**
+     * 変更監視開始
+     */
+    startChangeListener() {
+        this.db.changes({
+            since: 'now',
+            live: true,
+            include_docs: true
+        }).on('change', (change) => {
+            console.log('📝 Database changed:', change.id);
+            this.notifyChange('change', change);
+        }).on('error', (err) => {
+            console.error('Change listener error:', err);
+        });
+    }
+
+    /**
+     * 変更通知
+     */
+    notifyChange(type, data) {
+        const event = new CustomEvent('whale:storage:change', {
+            detail: { type, data }
+        });
+        window.dispatchEvent(event);
+
+        // 登録されたリスナーに通知
+        this.changeListeners.forEach(listener => {
+            try {
+                listener(type, data);
+            } catch (error) {
+                console.error('Listener error:', error);
+            }
+        });
+    }
+
+    /**
+     * 変更リスナー登録
+     */
+    addChangeListener(listener) {
+        this.changeListeners.add(listener);
+    }
+
+    /**
+     * 変更リスナー削除
+     */
+    removeChangeListener(listener) {
+        this.changeListeners.delete(listener);
     }
 
     // ==================== LocalStorage操作 ====================
@@ -147,6 +282,12 @@ class WhaleStorageManager {
 
             const result = await this.db.put(doc);
             console.log('✅ Document saved:', result.id);
+            
+            // 同期実行
+            if (navigator.onLine) {
+                await this.syncWithBackend();
+            }
+
             return { ...doc, _rev: result.rev };
         } catch (error) {
             console.error('❌ Save error:', error);
@@ -178,7 +319,15 @@ class WhaleStorageManager {
                 updatedAt: new Date().toISOString()
             };
 
-            return await this.save(updated.type, updated);
+            const result = await this.db.put(updated);
+            console.log('✅ Document updated:', result.id);
+
+            // 同期実行
+            if (navigator.onLine) {
+                await this.syncWithBackend();
+            }
+
+            return { ...updated, _rev: result.rev };
         } catch (error) {
             console.error('❌ Update error:', error);
             throw error;
@@ -193,6 +342,12 @@ class WhaleStorageManager {
             }
             await this.db.remove(doc);
             console.log('✅ Document deleted:', id);
+
+            // 同期実行
+            if (navigator.onLine) {
+                await this.syncWithBackend();
+            }
+
             return true;
         } catch (error) {
             console.error('❌ Delete error:', error);
@@ -204,6 +359,7 @@ class WhaleStorageManager {
         try {
             const result = await this.db.find({
                 selector: { type: type },
+                sort: [{ updatedAt: 'desc' }],
                 ...options
             });
             return result.docs;
@@ -220,6 +376,7 @@ class WhaleStorageManager {
                     type: type,
                     userId: userId
                 },
+                sort: [{ updatedAt: 'desc' }],
                 ...options
             });
             return result.docs;
@@ -271,7 +428,6 @@ class WhaleStorageManager {
         const currentUser = await this.getCurrentUser();
         const organizationId = data.organizationId || currentUser?.organizationId;
         
-        // パスワードハッシュ化
         let passwordHash = data.passwordHash;
         if (data.password && !passwordHash) {
             passwordHash = await this.hashPassword(data.password);
@@ -325,6 +481,9 @@ class WhaleStorageManager {
         return await this.update(userId, updates);
     }
 
+    /**
+     * 日々の記録保存（修正版）
+     */
     async saveDailyRecord(data) {
         const currentUser = await this.getCurrentUser();
         const organizationId = data.organizationId || currentUser?.organizationId;
@@ -340,13 +499,17 @@ class WhaleStorageManager {
 
         if (existing.docs.length > 0) {
             // 更新
-            return await this.update(existing.docs[0]._id, data);
+            const result = await this.update(existing.docs[0]._id, data);
+            this.notifyChange('daily_record_updated', result);
+            return result;
         } else {
             // 新規作成
-            return await this.save('daily_record', {
+            const result = await this.save('daily_record', {
                 ...data,
                 organizationId: organizationId
             });
+            this.notifyChange('daily_record_created', result);
+            return result;
         }
     }
 
@@ -369,16 +532,23 @@ class WhaleStorageManager {
         return records.find(r => r.userId === userId) || null;
     }
 
+    /**
+     * 出席管理（修正版）
+     */
     async getAttendance(date) {
-        const records = await this.findByType('attendance');
-        return records.filter(r => r.attendanceDate === date);
+        const records = await this.db.find({
+            selector: {
+                type: 'attendance',
+                attendanceDate: date
+            }
+        });
+        return records.docs;
     }
 
     async saveAttendance(data) {
         const currentUser = await this.getCurrentUser();
         const organizationId = currentUser?.organizationId;
 
-        // 既存レコード確認
         const existing = await this.db.find({
             selector: {
                 type: 'attendance',
@@ -388,49 +558,63 @@ class WhaleStorageManager {
         });
 
         if (existing.docs.length > 0) {
-            return await this.update(existing.docs[0]._id, data);
+            const result = await this.update(existing.docs[0]._id, data);
+            this.notifyChange('attendance_updated', result);
+            return result;
         } else {
-            return await this.save('attendance', {
+            const result = await this.save('attendance', {
                 ...data,
                 organizationId: organizationId
             });
+            this.notifyChange('attendance_created', result);
+            return result;
         }
     }
 
+    /**
+     * アセスメント（修正版）
+     */
     async getAssessments() {
         return await this.findByType('assessment');
     }
 
     async createAssessment(data) {
         const currentUser = await this.getCurrentUser();
-        return await this.save('assessment', {
+        const result = await this.save('assessment', {
             ...data,
             organizationId: currentUser.organizationId,
             createdBy: currentUser._id
         });
+        this.notifyChange('assessment_created', result);
+        return result;
     }
 
+    /**
+     * サービス計画（修正版）
+     */
     async getServicePlans() {
         return await this.findByType('service_plan');
     }
 
     async createServicePlan(data) {
         const currentUser = await this.getCurrentUser();
-        return await this.save('service_plan', {
+        const result = await this.save('service_plan', {
             ...data,
             organizationId: currentUser.organizationId,
             createdBy: currentUser._id
         });
+        this.notifyChange('service_plan_created', result);
+        return result;
     }
 
     // ==================== エクスポート機能 ====================
 
     async exportPDF(data) {
-        // バックエンドAPI経由でPDF生成
         const response = await fetch(`${window.WHALE.API_URL}/api/export/pdf`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.getLocal('authToken')}`
             },
             body: JSON.stringify(data)
         });
@@ -453,7 +637,8 @@ class WhaleStorageManager {
         const response = await fetch(`${window.WHALE.API_URL}/api/export/excel`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.getLocal('authToken')}`
             },
             body: JSON.stringify(data)
         });
@@ -604,6 +789,11 @@ class WhaleStorageManager {
         }
 
         try {
+            // 同期停止
+            if (this.syncInterval) {
+                clearInterval(this.syncInterval);
+            }
+
             await this.db.destroy();
             
             const keys = [];
@@ -644,11 +834,21 @@ class WhaleStorageManager {
             }
         };
     }
+
+    /**
+     * クリーンアップ
+     */
+    destroy() {
+        if (this.syncInterval) {
+            clearInterval(this.syncInterval);
+        }
+        this.changeListeners.clear();
+    }
 }
 
 // グローバルインスタンス作成
 window.WhaleStorage = new WhaleStorageManager();
 
-console.log('🐋 WHALE Storage Manager loaded (v2.1.0)');
+console.log('🐋 WHALE Storage Manager loaded (v2.2.0 - Fixed)');
 
 export default window.WhaleStorage;
