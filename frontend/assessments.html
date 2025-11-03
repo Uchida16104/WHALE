@@ -541,6 +541,19 @@ async function exportAssessmentPDF(assessmentId) {
 function closeViewAssessmentModal() {
         document.getElementById('view-assessment-modal').classList.add('hidden');
 }
+async function refreshDashboard() {
+    // ダッシュボードのデータを再読み込み
+    await loadStatistics(currentUser);
+    await loadRecentRecords(currentUser);
+}
+
+async function loadReportData() {
+    // レポートデータを再読み込み
+}
+await window.WhaleStorage.saveDailyRecord(data);
+window.dispatchEvent(new CustomEvent('whale:data:updated', {
+    detail: { type: 'daily_record', data: result }
+}));
 </script>
 <style>
 @media print {
