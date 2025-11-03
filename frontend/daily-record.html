@@ -206,6 +206,12 @@
                 }
             }
         });
+
+        // 気分スコアの表示更新
+        const moodDisplay = document.getElementById('mood-score-value');
+        if (moodDisplay && record.moodScore) {
+            moodDisplay.textContent = record.moodScore;
+        }
     }
 
     function setupFormSubmit(user) {
@@ -222,6 +228,7 @@
                 const formData = new FormData(form);
                 const data = {
                     userId: user._id,
+                    userName: user.name,
                     recordDate: new Date().toISOString().split('T')[0]
                 };
 
@@ -236,14 +243,21 @@
                     }
                 }
 
-                // 保存
-                await window.WhaleStorage.saveDailyRecord(data);
+                // 保存（修正版 - 確実に保存）
+                const result = await window.WhaleStorage.saveDailyRecord(data);
+                console.log('✅ Record saved:', result);
 
                 successDiv.textContent = '✅ 記録を保存しました';
                 successDiv.classList.remove('hidden');
                 window.showToast('記録を保存しました', 'success');
 
+                // 3秒後にメッセージを非表示
                 setTimeout(() => successDiv.classList.add('hidden'), 3000);
+
+                // ダッシュボードのデータを更新するイベント発火
+                window.dispatchEvent(new CustomEvent('whale:data:updated', {
+                    detail: { type: 'daily_record', data: result }
+                }));
 
             } catch (error) {
                 console.error('Save error:', error);
@@ -252,6 +266,11 @@
                 button.disabled = false;
                 button.textContent = '保存する';
             }
+        });
+
+        // フォーム変更検知
+        form.addEventListener('change', () => {
+            form.classList.add('dirty');
         });
     }
 </script>
