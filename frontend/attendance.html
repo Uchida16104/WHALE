@@ -287,4 +287,17 @@
             window.showToast('保存に失敗しました: ' + error.message, 'error');
         }
     }
+    async function refreshDashboard() {
+    // ダッシュボードのデータを再読み込み
+    await loadStatistics(currentUser);
+    await loadRecentRecords(currentUser);
+}
+
+async function loadReportData() {
+    // レポートデータを再読み込み
+}
+await window.WhaleStorage.saveDailyRecord(data);
+window.dispatchEvent(new CustomEvent('whale:data:updated', {
+    detail: { type: 'daily_record', data: result }
+}));
 </script>
