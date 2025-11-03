@@ -490,4 +490,18 @@
         document.getElementById('online-status').textContent = '🔴 オフライン';
         window.showToast('オフラインモードです', 'warning');
     });
+
+    async function refreshDashboard() {
+    // ダッシュボードのデータを再読み込み
+    await loadStatistics(currentUser);
+    await loadRecentRecords(currentUser);
+}
+
+async function loadReportData() {
+    // レポートデータを再読み込み
+}
+await window.WhaleStorage.saveDailyRecord(data);
+window.dispatchEvent(new CustomEvent('whale:data:updated', {
+    detail: { type: 'daily_record', data: result }
+}));
 </script>
