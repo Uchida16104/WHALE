@@ -444,6 +444,9 @@ async function exportAssessmentPDF(assessmentId) {
         window.showToast('PDF出力エラー: ' + error.message, 'error');
     }
 }
+function closeViewAssessmentModal() {
+        document.getElementById('view-assessment-modal').classList.add('hidden');
+}
 </script>
 <style>
 @media print {
