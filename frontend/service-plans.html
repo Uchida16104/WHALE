@@ -303,67 +303,257 @@
         }
     }
 
-    function viewPlan(planId) {
+    <!-- service-plans.html の viewPlan 関数を以下に修正 -->
+
+<script>
+function viewPlan(planId) {
+    const plan = allPlans.find(p => p._id === planId);
+    if (!plan) return;
+
+    const user = allUsers.find(u => u._id === plan.userId);
+
+    const content = `
+        <div id="service-plan-print-content" class="space-y-4">
+            <div class="border-b pb-3">
+                <label class="text-sm text-gray-600 font-medium">利用者</label>
+                <div class="mt-1 text-lg font-semibold">${user ? user.name : '不明'}</div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="text-sm text-gray-600 font-medium">計画開始日</label>
+                    <div class="mt-1">${plan.startDate ? new Date(plan.startDate).toLocaleDateString('ja-JP') : '-'}</div>
+                </div>
+                <div>
+                    <label class="text-sm text-gray-600 font-medium">計画終了日</label>
+                    <div class="mt-1">${plan.endDate ? new Date(plan.endDate).toLocaleDateString('ja-JP') : '-'}</div>
+                </div>
+            </div>
+            <div>
+                <label class="text-sm text-gray-600 font-medium">利用者の希望</label>
+                <div class="mt-1 text-gray-800 whitespace-pre-wrap">${plan.userWish || '-'}</div>
+            </div>
+            <div>
+                <label class="text-sm text-gray-600 font-medium">総合的な支援方針</label>
+                <div class="mt-1 text-gray-800 whitespace-pre-wrap">${plan.overallPolicy || '-'}</div>
+            </div>
+            <div class="border-t pt-3">
+                <label class="text-sm text-gray-600 font-medium">長期目標</label>
+                <div class="mt-1 text-gray-800 whitespace-pre-wrap">${plan.longTermGoal || '-'}</div>
+            </div>
+            <div>
+                <label class="text-sm text-gray-600 font-medium">短期目標</label>
+                <div class="mt-1 text-gray-800 whitespace-pre-wrap">${plan.shortTermGoal || '-'}</div>
+            </div>
+            <div class="border-t pt-3">
+                <label class="text-sm text-gray-600 font-medium">具体的なサービス内容</label>
+                <div class="mt-1 text-gray-800 whitespace-pre-wrap">${plan.serviceContent || '-'}</div>
+            </div>
+            <div>
+                <label class="text-sm text-gray-600 font-medium">週間計画</label>
+                <div class="mt-1 text-gray-800 whitespace-pre-wrap">${plan.weeklyPlan || '-'}</div>
+            </div>
+            <div>
+                <label class="text-sm text-gray-600 font-medium">緊急時の対応</label>
+                <div class="mt-1 text-gray-800 whitespace-pre-wrap">${plan.emergencyResponse || '-'}</div>
+            </div>
+            <div class="border-t pt-3 text-sm text-gray-500">
+                作成日時: ${plan.createdAt ? new Date(plan.createdAt).toLocaleString('ja-JP') : '-'}
+            </div>
+        </div>
+        
+        <!-- 印刷・エクスポートボタン -->
+        <div class="mt-6 flex gap-4 no-print">
+            <button onclick="printServicePlan()" 
+                    class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition">
+                🖨️ 印刷
+            </button>
+            <button onclick="exportServicePlanPDF('${planId}')" 
+                    class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition">
+                📄 PDF出力
+            </button>
+            <button onclick="exportServicePlanExcel('${planId}')" 
+                    class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-lg transition">
+                📊 Excel出力
+            </button>
+        </div>
+    `;
+
+    document.getElementById('plan-detail-content').innerHTML = content;
+    document.getElementById('view-plan-modal').classList.remove('hidden');
+}
+
+// サービス計画印刷
+function printServicePlan() {
+    const printContent = document.getElementById('service-plan-print-content');
+    if (!printContent) return;
+
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>サービス利用計画 - WHALE</title>
+            <style>
+                @page {
+                    size: A4;
+                    margin: 15mm;
+                }
+                body {
+                    font-family: 'Noto Sans JP', 'MS PGothic', sans-serif;
+                    padding: 10mm;
+                    font-size: 11pt;
+                    line-height: 1.6;
+                }
+                h1 {
+                    text-align: center;
+                    border-bottom: 3px solid #333;
+                    padding-bottom: 10px;
+                    margin-bottom: 20px;
+                    font-size: 18pt;
+                }
+                .header-info {
+                    display: flex;
+                    justify-content: space-between;
+                    margin-bottom: 20px;
+                    padding: 10px;
+                    background: #f5f5f5;
+                    border: 1px solid #ddd;
+                }
+                .section {
+                    margin-bottom: 15px;
+                    page-break-inside: avoid;
+                    border-left: 3px solid #4A90E2;
+                    padding-left: 10px;
+                }
+                .label {
+                    font-weight: bold;
+                    color: #333;
+                    margin-bottom: 5px;
+                    font-size: 10pt;
+                }
+                .value {
+                    margin-left: 10px;
+                    line-height: 1.8;
+                    white-space: pre-wrap;
+                    border: 1px solid #e0e0e0;
+                    padding: 8px;
+                    background: #fafafa;
+                }
+                .footer {
+                    margin-top: 30px;
+                    text-align: center;
+                    font-size: 9pt;
+                    color: #666;
+                    border-top: 1px solid #ddd;
+                    padding-top: 10px;
+                }
+                @media print {
+                    body { padding: 5mm; }
+                    .no-print { display: none; }
+                }
+            </style>
+        </head>
+        <body>
+            <h1>🐋 WHALE サービス利用計画書</h1>
+            <div class="content">
+                ${printContent.innerHTML.replace(/class="[^"]*"/g, '')}
+            </div>
+            <div class="footer">
+                発行日: ${new Date().toLocaleDateString('ja-JP', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                })}
+            </div>
+            <script>
+                window.onload = function() {
+                    window.print();
+                    setTimeout(function() { window.close(); }, 100);
+                }
+            </script>
+        </body>
+        </html>
+    `);
+    
+    printWindow.document.close();
+}
+
+// サービス計画PDF出力
+async function exportServicePlanPDF(planId) {
+    try {
+        const plan = allPlans.find(p => p._id === planId);
+        if (!plan) return;
+
+        const user = allUsers.find(u => u._id === plan.userId);
+        const currentUser = await window.WhaleStorage.getCurrentUser();
+        const org = await window.WhaleStorage.getOrganization(currentUser.organizationId);
+
+        const data = {
+            records: [{
+                ...plan,
+                userName: user ? user.name : '不明',
+                type: 'service_plan',
+                recordDate: plan.startDate
+            }],
+            analytics: {
+                planPeriod: `${plan.startDate} ～ ${plan.endDate}`
+            },
+            organization: { name: org.name }
+        };
+
+        window.showToast('PDF生成中...', 'info');
+        await window.WhaleStorage.exportPDF(data);
+        window.showToast('PDFを出力しました', 'success');
+
+    } catch (error) {
+        console.error('PDF export error:', error);
+        window.showToast('PDF出力エラー: ' + error.message, 'error');
+    }
+}
+
+// サービス計画Excel出力
+async function exportServicePlanExcel(planId) {
+    try {
         const plan = allPlans.find(p => p._id === planId);
         if (!plan) return;
 
         const user = allUsers.find(u => u._id === plan.userId);
 
-        const content = `
-            <div class="space-y-4">
-                <div class="border-b pb-3">
-                    <label class="text-sm text-gray-600 font-medium">利用者</label>
-                    <div class="mt-1 text-lg font-semibold">${user ? user.name : '不明'}</div>
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="text-sm text-gray-600 font-medium">計画開始日</label>
-                        <div class="mt-1">${plan.startDate ? new Date(plan.startDate).toLocaleDateString('ja-JP') : '-'}</div>
-                    </div>
-                    <div>
-                        <label class="text-sm text-gray-600 font-medium">計画終了日</label>
-                        <div class="mt-1">${plan.endDate ? new Date(plan.endDate).toLocaleDateString('ja-JP') : '-'}</div>
-                    </div>
-                </div>
-                <div>
-                    <label class="text-sm text-gray-600 font-medium">利用者の希望</label>
-                    <div class="mt-1 text-gray-800 whitespace-pre-wrap">${plan.userWish || '-'}</div>
-                </div>
-                <div>
-                    <label class="text-sm text-gray-600 font-medium">総合的な支援方針</label>
-                    <div class="mt-1 text-gray-800 whitespace-pre-wrap">${plan.overallPolicy || '-'}</div>
-                </div>
-                <div class="border-t pt-3">
-                    <label class="text-sm text-gray-600 font-medium">長期目標</label>
-                    <div class="mt-1 text-gray-800 whitespace-pre-wrap">${plan.longTermGoal || '-'}</div>
-                </div>
-                <div>
-                    <label class="text-sm text-gray-600 font-medium">短期目標</label>
-                    <div class="mt-1 text-gray-800 whitespace-pre-wrap">${plan.shortTermGoal || '-'}</div>
-                </div>
-                <div class="border-t pt-3">
-                    <label class="text-sm text-gray-600 font-medium">具体的なサービス内容</label>
-                    <div class="mt-1 text-gray-800 whitespace-pre-wrap">${plan.serviceContent || '-'}</div>
-                </div>
-                <div>
-                    <label class="text-sm text-gray-600 font-medium">週間計画</label>
-                    <div class="mt-1 text-gray-800 whitespace-pre-wrap">${plan.weeklyPlan || '-'}</div>
-                </div>
-                <div>
-                    <label class="text-sm text-gray-600 font-medium">緊急時の対応</label>
-                    <div class="mt-1 text-gray-800 whitespace-pre-wrap">${plan.emergencyResponse || '-'}</div>
-                </div>
-                <div class="border-t pt-3 text-sm text-gray-500">
-                    作成日時: ${plan.createdAt ? new Date(plan.createdAt).toLocaleString('ja-JP') : '-'}
-                </div>
-            </div>
-        `;
+        const data = {
+            records: [{
+                日付: plan.startDate,
+                利用者名: user ? user.name : '不明',
+                計画期間: `${plan.startDate} ～ ${plan.endDate}`,
+                利用者の希望: plan.userWish,
+                総合的な支援方針: plan.overallPolicy,
+                長期目標: plan.longTermGoal,
+                短期目標: plan.shortTermGoal,
+                サービス内容: plan.serviceContent,
+                週間計画: plan.weeklyPlan,
+                緊急時対応: plan.emergencyResponse
+            }]
+        };
 
-        document.getElementById('plan-detail-content').innerHTML = content;
-        document.getElementById('view-plan-modal').classList.remove('hidden');
+        window.showToast('Excel生成中...', 'info');
+        await window.WhaleStorage.exportExcel(data);
+        window.showToast('Excelを出力しました', 'success');
+
+    } catch (error) {
+        console.error('Excel export error:', error);
+        window.showToast('Excel出力エラー: ' + error.message, 'error');
     }
+}
 
     function closeViewPlanModal() {
         document.getElementById('view-plan-modal').classList.add('hidden');
     }
 </script>
+<style>
+@media print {
+    .no-print {
+        display: none !important;
+    }
+}
+</style>
