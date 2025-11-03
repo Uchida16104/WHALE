@@ -90,6 +90,100 @@
     <script type="module" src="js/auth.js"></script>
 
     <script>
+        (function initDataSyncHandler() {
+    'use strict';
+
+    // ページ固有の更新関数を登録
+    const pageUpdateHandlers = {
+        'dashboard.html': refreshDashboard,
+        'reports.html': loadReportData,
+        'attendance.html': loadAttendance,
+        'users.html': loadUsers,
+        'assessments.html': loadAssessments,
+        'service-plans.html': loadPlans
+    };
+
+    // 現在のページ判定
+    function getCurrentPage() {
+        const path = window.location.pathname;
+        const page = path.substring(path.lastIndexOf('/') + 1) || 'index.html';
+        return page;
+    }
+
+    // ストレージ変更リスナー
+    window.addEventListener('whale:storage:change', async (event) => {
+        console.log('📡 [Sync Handler] Storage change detected:', event.detail);
+
+        const currentPage = getCurrentPage();
+        const updateHandler = pageUpdateHandlers[currentPage];
+
+        if (updateHandler && typeof updateHandler === 'function') {
+            try {
+                await updateHandler();
+                console.log(`✅ [Sync Handler] ${currentPage} updated`);
+            } catch (error) {
+                console.error(`❌ [Sync Handler] Update failed for ${currentPage}:`, error);
+            }
+        }
+    });
+
+    // データ更新イベントリスナー
+    window.addEventListener('whale:data:updated', async (event) => {
+        console.log('📡 [Sync Handler] Data updated:', event.detail);
+
+        const currentPage = getCurrentPage();
+        const updateHandler = pageUpdateHandlers[currentPage];
+
+        if (updateHandler && typeof updateHandler === 'function') {
+            try {
+                await updateHandler();
+                console.log(`✅ [Sync Handler] ${currentPage} refreshed`);
+            } catch (error) {
+                console.error(`❌ [Sync Handler] Refresh failed for ${currentPage}:`, error);
+            }
+        }
+    });
+
+    // ローカルストレージ変更監視（別タブ・ウィンドウ間同期）
+    window.addEventListener('storage', async (event) => {
+        if (event.key && event.key.startsWith('whale_')) {
+            console.log('📡 [Sync Handler] LocalStorage changed:', event.key);
+
+            const currentPage = getCurrentPage();
+            const updateHandler = pageUpdateHandlers[currentPage];
+
+            if (updateHandler && typeof updateHandler === 'function') {
+                try {
+                    await updateHandler();
+                    console.log(`✅ [Sync Handler] ${currentPage} synced with other tab`);
+                } catch (error) {
+                    console.error(`❌ [Sync Handler] Cross-tab sync failed:`, error);
+                }
+            }
+        }
+    });
+
+    // ページ表示時の自動更新（バックグラウンドから復帰時）
+    document.addEventListener('visibilitychange', async () => {
+        if (!document.hidden) {
+            console.log('👁️ [Sync Handler] Page became visible, refreshing...');
+
+            const currentPage = getCurrentPage();
+            const updateHandler = pageUpdateHandlers[currentPage];
+
+            if (updateHandler && typeof updateHandler === 'function') {
+                try {
+                    await updateHandler();
+                    console.log(`✅ [Sync Handler] ${currentPage} refreshed on visibility`);
+                } catch (error) {
+                    console.error(`❌ [Sync Handler] Visibility refresh failed:`, error);
+                }
+            }
+        }
+    });
+
+    console.log('✅ [Sync Handler] Data sync handler initialized');
+})();
         // グローバル変数
         window.WHALE = {
             API_URL: 'https://whale-backend-84p5.onrender.com',
