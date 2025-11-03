@@ -287,62 +287,171 @@
         }
     }
 
-    function viewAssessment(assessmentId) {
+function viewAssessment(assessmentId) {
+    const assessment = allAssessments.find(a => a._id === assessmentId);
+    if (!assessment) return;
+
+    const user = allUsers.find(u => u._id === assessment.userId);
+
+    const content = `
+        <div id="assessment-print-content" class="space-y-4">
+            <div>
+                <label class="text-sm text-gray-600 font-medium">利用者</label>
+                <div class="mt-1">${user ? user.name : '不明'}</div>
+            </div>
+            <div>
+                <label class="text-sm text-gray-600 font-medium">アセスメント日</label>
+                <div class="mt-1">${assessment.assessmentDate ? new Date(assessment.assessmentDate).toLocaleDateString('ja-JP') : '-'}</div>
+            </div>
+            <div>
+                <label class="text-sm text-gray-600 font-medium">生活状況</label>
+                <div class="mt-1 text-gray-800">${assessment.livingCondition || '-'}</div>
+            </div>
+            <div>
+                <label class="text-sm text-gray-600 font-medium">健康状態</label>
+                <div class="mt-1 text-gray-800">${assessment.healthCondition || '-'}</div>
+            </div>
+            <div>
+                <label class="text-sm text-gray-600 font-medium">ADL（日常生活動作）</label>
+                <div class="mt-1 text-gray-800">${assessment.adl || '-'}</div>
+            </div>
+            <div>
+                <label class="text-sm text-gray-600 font-medium">コミュニケーション能力</label>
+                <div class="mt-1 text-gray-800">${assessment.communication || '-'}</div>
+            </div>
+            <div>
+                <label class="text-sm text-gray-600 font-medium">社会参加状況</label>
+                <div class="mt-1 text-gray-800">${assessment.socialParticipation || '-'}</div>
+            </div>
+            <div>
+                <label class="text-sm text-gray-600 font-medium">ニーズと課題</label>
+                <div class="mt-1 text-gray-800">${assessment.needs || '-'}</div>
+            </div>
+            <div>
+                <label class="text-sm text-gray-600 font-medium">支援方針</label>
+                <div class="mt-1 text-gray-800">${assessment.supportPlan || '-'}</div>
+            </div>
+            <div>
+                <label class="text-sm text-gray-600 font-medium">作成日時</label>
+                <div class="mt-1 text-sm">${assessment.createdAt ? new Date(assessment.createdAt).toLocaleString('ja-JP') : '-'}</div>
+            </div>
+        </div>
+        
+        <!-- 印刷ボタン -->
+        <div class="mt-6 flex gap-4 no-print">
+            <button onclick="printAssessment()" 
+                    class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition">
+                🖨️ 印刷
+            </button>
+            <button onclick="exportAssessmentPDF('${assessmentId}')" 
+                    class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition">
+                📄 PDF出力
+            </button>
+        </div>
+    `;
+
+    document.getElementById('assessment-detail-content').innerHTML = content;
+    document.getElementById('view-assessment-modal').classList.remove('hidden');
+}
+
+// 印刷関数
+function printAssessment() {
+    const printContent = document.getElementById('assessment-print-content');
+    if (!printContent) return;
+
+    // 印刷用ウィンドウ作成
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>アセスメント - WHALE</title>
+            <style>
+                body {
+                    font-family: 'Noto Sans JP', sans-serif;
+                    padding: 20mm;
+                    font-size: 12pt;
+                }
+                h1 {
+                    text-align: center;
+                    border-bottom: 2px solid #333;
+                    padding-bottom: 10px;
+                    margin-bottom: 30px;
+                }
+                .section {
+                    margin-bottom: 20px;
+                    page-break-inside: avoid;
+                }
+                .label {
+                    font-weight: bold;
+                    color: #555;
+                    margin-bottom: 5px;
+                }
+                .value {
+                    margin-left: 10px;
+                    line-height: 1.6;
+                    white-space: pre-wrap;
+                }
+                @media print {
+                    body { padding: 10mm; }
+                }
+            </style>
+        </head>
+        <body>
+            <h1>🐋 WHALE アセスメント</h1>
+            ${printContent.innerHTML.replace(/class=".*?"/g, '')}
+            <script>
+                window.onload = function() {
+                    window.print();
+                    setTimeout(function() { window.close(); }, 100);
+                }
+            </script>
+        </body>
+        </html>
+    `);
+    
+    printWindow.document.close();
+}
+
+// PDF出力関数
+async function exportAssessmentPDF(assessmentId) {
+    try {
         const assessment = allAssessments.find(a => a._id === assessmentId);
         if (!assessment) return;
 
         const user = allUsers.find(u => u._id === assessment.userId);
+        const currentUser = await window.WhaleStorage.getCurrentUser();
+        const org = await window.WhaleStorage.getOrganization(currentUser.organizationId);
 
-        const content = `
-            <div class="space-y-4">
-                <div>
-                    <label class="text-sm text-gray-600 font-medium">利用者</label>
-                    <div class="mt-1">${user ? user.name : '不明'}</div>
-                </div>
-                <div>
-                    <label class="text-sm text-gray-600 font-medium">アセスメント日</label>
-                    <div class="mt-1">${assessment.assessmentDate ? new Date(assessment.assessmentDate).toLocaleDateString('ja-JP') : '-'}</div>
-                </div>
-                <div>
-                    <label class="text-sm text-gray-600 font-medium">生活状況</label>
-                    <div class="mt-1 text-gray-800">${assessment.livingCondition || '-'}</div>
-                </div>
-                <div>
-                    <label class="text-sm text-gray-600 font-medium">健康状態</label>
-                    <div class="mt-1 text-gray-800">${assessment.healthCondition || '-'}</div>
-                </div>
-                <div>
-                    <label class="text-sm text-gray-600 font-medium">ADL（日常生活動作）</label>
-                    <div class="mt-1 text-gray-800">${assessment.adl || '-'}</div>
-                </div>
-                <div>
-                    <label class="text-sm text-gray-600 font-medium">コミュニケーション能力</label>
-                    <div class="mt-1 text-gray-800">${assessment.communication || '-'}</div>
-                </div>
-                <div>
-                    <label class="text-sm text-gray-600 font-medium">社会参加状況</label>
-                    <div class="mt-1 text-gray-800">${assessment.socialParticipation || '-'}</div>
-                </div>
-                <div>
-                    <label class="text-sm text-gray-600 font-medium">ニーズと課題</label>
-                    <div class="mt-1 text-gray-800">${assessment.needs || '-'}</div>
-                </div>
-                <div>
-                    <label class="text-sm text-gray-600 font-medium">支援方針</label>
-                    <div class="mt-1 text-gray-800">${assessment.supportPlan || '-'}</div>
-                </div>
-                <div>
-                    <label class="text-sm text-gray-600 font-medium">作成日時</label>
-                    <div class="mt-1 text-sm">${assessment.createdAt ? new Date(assessment.createdAt).toLocaleString('ja-JP') : '-'}</div>
-                </div>
-            </div>
-        `;
+        const data = {
+            records: [{
+                ...assessment,
+                userName: user ? user.name : '不明',
+                type: 'assessment'
+            }],
+            analytics: {},
+            organization: { name: org.name }
+        };
 
-        document.getElementById('assessment-detail-content').innerHTML = content;
-        document.getElementById('view-assessment-modal').classList.remove('hidden');
+        window.showToast('PDF生成中...', 'info');
+        await window.WhaleStorage.exportPDF(data);
+        window.showToast('PDFを出力しました', 'success');
+
+    } catch (error) {
+        console.error('PDF export error:', error);
+        window.showToast('PDF出力エラー: ' + error.message, 'error');
     }
-
-    function closeViewAssessmentModal() {
-        document.getElementById('view-assessment-modal').classList.add('hidden');
-    }
+}
 </script>
+<style>
+@media print {
+    .no-print {
+        display: none !important;
+    }
+    body {
+        background: white;
+    }
+}
+</style>
