@@ -1,7 +1,7 @@
 /**
- * WHALE Authentication Manager
- * クライアントサイド認証管理
- * @version 2.0.0
+ * WHALE Authentication Manager - 完全修正版
+ * クライアントサイド認証管理 + セッション管理強化
+ * @version 2.2.0
  */
 
 class WhaleAuthManager {
@@ -12,8 +12,7 @@ class WhaleAuthManager {
     }
 
     /**
-     * パスワードハッシュ化（簡易版）
-     * 本番環境ではバックエンドで行うべき
+     * パスワードハッシュ化
      */
     async hashPassword(password) {
         const encoder = new TextEncoder();
@@ -122,7 +121,7 @@ class WhaleAuthManager {
             }
 
             // セッション開始
-            this.startSession(user);
+            await this.startSession(user);
 
             console.log('✅ Login successful:', user.name);
 
@@ -140,13 +139,21 @@ class WhaleAuthManager {
     /**
      * セッション開始
      */
-    startSession(user) {
+    async startSession(user) {
         this.currentUser = user;
 
         // セッション情報保存
         window.WhaleStorage.setLocal('currentUserId', user._id);
         window.WhaleStorage.setLocal('sessionStart', new Date().toISOString());
         window.WhaleStorage.setLocal('isAuthenticated', true);
+
+        // 認証トークン生成（簡易版）
+        const token = btoa(JSON.stringify({
+            userId: user._id,
+            organizationId: user.organizationId,
+            timestamp: Date.now()
+        }));
+        window.WhaleStorage.setLocal('authToken', token);
 
         // セッションタイマー開始
         this.resetSessionTimer();
@@ -180,16 +187,23 @@ class WhaleAuthManager {
     }
 
     /**
-     * ログアウト
+     * ログアウト（完全修正版）
      */
     async logout() {
         try {
             console.log('🚪 Logging out...');
 
+            // ストレージクリーンアップ停止
+            if (window.WhaleStorage && window.WhaleStorage.syncInterval) {
+                clearInterval(window.WhaleStorage.syncInterval);
+            }
+
             // セッション情報削除
             window.WhaleStorage.removeLocal('currentUserId');
             window.WhaleStorage.removeLocal('sessionStart');
             window.WhaleStorage.removeLocal('isAuthenticated');
+            window.WhaleStorage.removeLocal('authToken');
+            window.WhaleStorage.removeLocal('lastActivity');
 
             // タイマークリア
             if (this.sessionTimer) {
@@ -201,6 +215,14 @@ class WhaleAuthManager {
 
             // イベント発火
             window.dispatchEvent(new CustomEvent('whale:logout'));
+
+            // キャッシュクリア
+            if ('caches' in window) {
+                const cacheNames = await caches.keys();
+                for (const cacheName of cacheNames) {
+                    await caches.delete(cacheName);
+                }
+            }
 
             console.log('✅ Logout successful');
 
@@ -345,6 +367,6 @@ window.WhaleAuth = new WhaleAuthManager();
     }, { passive: true });
 });
 
-console.log('🐋 WHALE Auth Manager loaded');
+console.log('🐋 WHALE Auth Manager loaded (v2.2.0 - Fixed)');
 
 export default window.WhaleAuth;
