@@ -1,7 +1,7 @@
 /**
- * WHALE Backend Server - 完全修正版
+ * WHALE Backend Server
  * Node.js + Express API Server
- * @version 2.2.0
+ * @version 2.0.0
  */
 
 const express = require('express');
@@ -28,42 +28,24 @@ app.use(helmet({
             styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.tailwindcss.com"],
             scriptSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com", "https://cdn.jsdelivr.net"],
             imgSrc: ["'self'", "data:", "https:"],
-            connectSrc: ["'self'", "https://whale-backend-84p5.onrender.com", "https://uchida16104.github.io"]
+            connectSrc: ["'self'", "https://whale-backend-84p5.onrender.com"]
         }
-    },
-    crossOriginEmbedderPolicy: false
+    }
 }));
 
-// CORS設定（修正版）
+// CORS設定
 const corsOptions = {
-    origin: function (origin, callback) {
-        const allowedOrigins = [
-            'https://uchida16104.github.io',
-            'http://localhost:3000',
-            'http://localhost:8000',
-            'http://127.0.0.1:3000',
-            'http://127.0.0.1:8000'
-        ];
-        
-        // originがundefined（同一オリジン）または許可リストに含まれる場合
-        if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true);
-        } else {
-            console.warn('CORS blocked origin:', origin);
-            callback(null, true); // 開発中は全て許可
-        }
-    },
+    origin: [
+        'https://uchida16104.github.io/WHALE',
+        'http://localhost:3000',
+        'http://127.0.0.1:3000'
+    ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
-    maxAge: 86400,
-    optionsSuccessStatus: 200
+    maxAge: 86400
 };
-
 app.use(cors(corsOptions));
-
-// プリフライトリクエスト対応
-app.options('*', cors(corsOptions));
 
 // 圧縮
 app.use(compression());
@@ -74,18 +56,15 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // レート制限
 const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 200, // 増加
-    message: { error: 'リクエストが多すぎます。しばらく待ってから再試行してください。' },
-    standardHeaders: true,
-    legacyHeaders: false
+    windowMs: 15 * 60 * 1000, // 15分
+    max: 100, // 最大100リクエスト
+    message: { error: 'リクエストが多すぎます。しばらく待ってから再試行してください。' }
 });
 app.use('/api/', limiter);
 
 // リクエストログ
 app.use((req, res, next) => {
-    const timestamp = new Date().toISOString();
-    console.log(`${timestamp} - ${req.method} ${req.path} - Origin: ${req.get('origin')}`);
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
     next();
 });
 
@@ -113,7 +92,7 @@ function authenticateToken(req, res, next) {
 app.get('/health', (req, res) => {
     res.json({
         status: 'healthy',
-        version: '2.2.0',
+        version: '2.0.0',
         timestamp: new Date().toISOString(),
         uptime: process.uptime()
     });
@@ -122,7 +101,7 @@ app.get('/health', (req, res) => {
 app.get('/', (req, res) => {
     res.json({
         name: 'WHALE Backend API',
-        version: '2.2.0',
+        version: '2.0.0',
         status: 'running',
         endpoints: {
             health: '/health',
@@ -139,10 +118,12 @@ app.post('/api/auth/login', async (req, res) => {
     try {
         const { organizationId, userId, passwordHash } = req.body;
 
+        // バリデーション
         if (!organizationId || !userId || !passwordHash) {
             return res.status(400).json({ error: '必須項目が不足しています' });
         }
 
+        // JWTトークン生成
         const token = jwt.sign(
             {
                 organizationId: organizationId,
@@ -156,7 +137,7 @@ app.post('/api/auth/login', async (req, res) => {
         res.json({
             success: true,
             token: token,
-            expiresIn: 86400
+            expiresIn: 86400 // 24時間（秒）
         });
     } catch (error) {
         console.error('Login error:', error);
@@ -204,8 +185,8 @@ app.post('/api/sync/upload', authenticateToken, async (req, res) => {
             return res.status(400).json({ error: '無効なデータ形式です' });
         }
 
-        // 実際の実装ではCouchDBやPostgreSQLに保存
-        console.log(`Received ${documents.length} documents for sync`);
+        // ここでCouchDBや他のデータベースに保存
+        // 現在はモック実装
 
         res.json({
             success: true,
@@ -222,7 +203,9 @@ app.get('/api/sync/download', authenticateToken, async (req, res) => {
     try {
         const { since } = req.query;
 
-        // 実際の実装ではデータベースから取得
+        // ここでCouchDBや他のデータベースから取得
+        // 現在はモック実装
+
         res.json({
             success: true,
             documents: [],
@@ -234,7 +217,7 @@ app.get('/api/sync/download', authenticateToken, async (req, res) => {
     }
 });
 
-// ==================== エクスポートAPI（強化版） ====================
+// ==================== エクスポートAPI ====================
 
 app.post('/api/export/pdf', authenticateToken, async (req, res) => {
     try {
@@ -244,28 +227,22 @@ app.post('/api/export/pdf', authenticateToken, async (req, res) => {
             return res.status(400).json({ error: '無効なデータ形式です' });
         }
 
-        const doc = new PDFDocument({ 
-            size: 'A4', 
-            margin: 50,
-            info: {
-                Title: 'WHALE システムレポート',
-                Author: 'WHALE System',
-                Subject: 'データ分析レポート'
-            }
-        });
+        // PDFDocument作成
+        const doc = new PDFDocument({ size: 'A4', margin: 50 });
 
+        // ヘッダー設定
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader(
             'Content-Disposition',
             `attachment; filename=whale_report_${new Date().toISOString().split('T')[0]}.pdf`
         );
-        res.setHeader('Cache-Control', 'no-cache');
 
+        // PDFストリームをレスポンスにパイプ
         doc.pipe(res);
 
         // タイトル
         doc.fontSize(20)
-           .text('🐋 WHALE システムレポート', { align: 'center' })
+           .text('WHALE システムレポート', { align: 'center' })
            .moveDown();
 
         // 基本情報
@@ -287,7 +264,7 @@ app.post('/api/export/pdf', authenticateToken, async (req, res) => {
         // 記録データ
         doc.fontSize(16).text('記録一覧', { underline: true }).moveDown(0.5);
 
-        records.slice(0, 30).forEach((record, index) => {
+        records.slice(0, 20).forEach((record, index) => {
             if (index > 0 && index % 10 === 0) {
                 doc.addPage();
             }
@@ -300,13 +277,12 @@ app.post('/api/export/pdf', authenticateToken, async (req, res) => {
                .moveDown(0.5);
         });
 
+        // PDFファイナライズ
         doc.end();
 
     } catch (error) {
         console.error('PDF export error:', error);
-        if (!res.headersSent) {
-            res.status(500).json({ error: 'PDF生成に失敗しました' });
-        }
+        res.status(500).json({ error: 'PDF生成に失敗しました' });
     }
 });
 
@@ -318,9 +294,11 @@ app.post('/api/export/excel', authenticateToken, async (req, res) => {
             return res.status(400).json({ error: '無効なデータ形式です' });
         }
 
+        // Excelワークブック作成
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('日々の記録');
 
+        // ヘッダー設定
         worksheet.columns = [
             { header: '日付', key: 'recordDate', width: 12 },
             { header: '利用者', key: 'userName', width: 20 },
@@ -332,6 +310,7 @@ app.post('/api/export/excel', authenticateToken, async (req, res) => {
             { header: '気分スコア', key: 'moodScore', width: 12 }
         ];
 
+        // スタイル設定
         worksheet.getRow(1).font = { bold: true };
         worksheet.getRow(1).fill = {
             type: 'pattern',
@@ -340,6 +319,7 @@ app.post('/api/export/excel', authenticateToken, async (req, res) => {
         };
         worksheet.getRow(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
 
+        // データ追加
         records.forEach(record => {
             worksheet.addRow({
                 recordDate: record.recordDate || '',
@@ -353,6 +333,7 @@ app.post('/api/export/excel', authenticateToken, async (req, res) => {
             });
         });
 
+        // レスポンスヘッダー設定
         res.setHeader(
             'Content-Type',
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -361,16 +342,14 @@ app.post('/api/export/excel', authenticateToken, async (req, res) => {
             'Content-Disposition',
             `attachment; filename=whale_report_${new Date().toISOString().split('T')[0]}.xlsx`
         );
-        res.setHeader('Cache-Control', 'no-cache');
 
+        // Excelファイル書き込み
         await workbook.xlsx.write(res);
         res.end();
 
     } catch (error) {
         console.error('Excel export error:', error);
-        if (!res.headersSent) {
-            res.status(500).json({ error: 'Excel生成に失敗しました' });
-        }
+        res.status(500).json({ error: 'Excel生成に失敗しました' });
     }
 });
 
@@ -382,12 +361,14 @@ app.post('/api/export/csv', authenticateToken, async (req, res) => {
             return res.status(400).json({ error: '無効なデータ形式です' });
         }
 
+        // CSVヘッダー
         const headers = [
             '日付', '利用者', '起床時間', '就寝時間', '通所時間', '退所時間',
             '朝食', '昼食', '夕食', '体温', '血圧(高)', '血圧(低)', '脈拍',
             'SpO2', '気分スコア', '運動', '入浴'
         ];
 
+        // CSV生成
         let csv = headers.join(',') + '\n';
 
         records.forEach(record => {
@@ -413,22 +394,21 @@ app.post('/api/export/csv', authenticateToken, async (req, res) => {
             csv += row.join(',') + '\n';
         });
 
+        // レスポンス設定
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader(
             'Content-Disposition',
             `attachment; filename=whale_report_${new Date().toISOString().split('T')[0]}.csv`
         );
-        res.setHeader('Cache-Control', 'no-cache');
 
+        // BOM追加（Excel対応）
         res.write('\uFEFF');
         res.write(csv);
         res.end();
 
     } catch (error) {
         console.error('CSV export error:', error);
-        if (!res.headersSent) {
-            res.status(500).json({ error: 'CSV生成に失敗しました' });
-        }
+        res.status(500).json({ error: 'CSV生成に失敗しました' });
     }
 });
 
@@ -441,6 +421,9 @@ app.post('/api/mail/send', authenticateToken, async (req, res) => {
         if (!to || !subject || !body) {
             return res.status(400).json({ error: '必須項目が不足しています' });
         }
+
+        // メール送信処理（SendGrid、Resend等の実装）
+        // 現在はモック実装
 
         console.log('Email sent:', { to, subject });
 
@@ -464,6 +447,7 @@ app.post('/api/analytics/calculate', authenticateToken, async (req, res) => {
             return res.status(400).json({ error: '無効なデータ形式です' });
         }
 
+        // 統計計算
         const temperatures = records.map(r => r.temperature).filter(Boolean);
         const moodScores = records.map(r => r.moodScore).filter(Boolean);
         const bloodPressureHigh = records.map(r => r.bloodPressureHigh).filter(Boolean);
@@ -512,6 +496,7 @@ app.use((err, req, res, next) => {
     });
 });
 
+// 404ハンドラー
 app.use((req, res) => {
     res.status(404).json({
         error: 'エンドポイントが見つかりません',
@@ -524,13 +509,14 @@ app.use((req, res) => {
 app.listen(PORT, () => {
     console.log('🐋 WHALE Backend Server');
     console.log('=================================');
-    console.log(`Version: 2.2.0`);
+    console.log(`Version: 2.0.0`);
     console.log(`Port: ${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`Started at: ${new Date().toISOString()}`);
     console.log('=================================');
 });
 
+// グレースフルシャットダウン
 process.on('SIGTERM', () => {
     console.log('SIGTERM received, shutting down gracefully...');
     process.exit(0);
