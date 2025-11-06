@@ -65,19 +65,23 @@
             <h3 class="text-lg font-semibold text-gray-800 mb-4">データエクスポート</h3>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <button onclick="exportPDF()" 
-                        class="bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 rounded-lg transition">
+                        class="bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 rounded-lg transition disabled:opacity-50"
+                        id="btn-pdf">
                     📄 PDF出力
                 </button>
                 <button onclick="exportExcel()" 
-                        class="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition">
+                        class="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition disabled:opacity-50"
+                        id="btn-excel">
                     📊 Excel出力
                 </button>
                 <button onclick="exportCSV()" 
-                        class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition">
+                        class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition"
+                        id="btn-csv">
                     📋 CSV出力
                 </button>
                 <button onclick="exportJSON()" 
-                        class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-4 rounded-lg transition">
+                        class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-4 rounded-lg transition"
+                        id="btn-json">
                     💾 JSON出力
                 </button>
             </div>
@@ -140,6 +144,14 @@
 
             // 初期データ読み込み
             await loadReportData();
+
+            // データ変更監視
+            window.addEventListener('whale:datachange', async (e) => {
+                if (e.detail.change.doc?.type === 'daily_record') {
+                    console.log('Reports: Data change detected, reloading...');
+                    await loadReportData();
+                }
+            });
 
         } catch (error) {
             console.error('Reports init error:', error);
@@ -221,7 +233,8 @@
                     data: moodData,
                     borderColor: 'rgb(147, 51, 234)',
                     backgroundColor: 'rgba(147, 51, 234, 0.1)',
-                    tension: 0.4
+                    tension: 0.4,
+                    fill: true
                 }]
             },
             options: {
@@ -248,7 +261,8 @@
                     data: tempData,
                     borderColor: 'rgb(249, 115, 22)',
                     backgroundColor: 'rgba(249, 115, 22, 0.1)',
-                    tension: 0.4
+                    tension: 0.4,
+                    fill: true
                 }]
             },
             options: {
@@ -291,21 +305,27 @@
                 return;
             }
 
+            document.getElementById('btn-pdf').disabled = true;
+            document.getElementById('btn-pdf').textContent = '処理中...';
+
             const analytics = calculateAnalytics();
-            const organization = { name: currentUser.organizationId };
+            const organization = await window.WhaleStorage.getOrganization(currentUser.organizationId);
 
             const data = {
                 records: currentRecords.map(r => ({ ...r, userName: currentUser.name })),
                 analytics: analytics,
-                organization: organization
+                organization: organization || { name: currentUser.organizationId }
             };
 
-            const blob = await window.WhaleStorage.exportPDF(data);
+            await window.WhaleStorage.exportPDF(data);
             window.showToast('PDFをダウンロードしました', 'success');
 
         } catch (error) {
             console.error('PDF export error:', error);
             window.showToast('PDF出力エラー: ' + error.message, 'error');
+        } finally {
+            document.getElementById('btn-pdf').disabled = false;
+            document.getElementById('btn-pdf').textContent = '📄 PDF出力';
         }
     }
 
@@ -316,16 +336,22 @@
                 return;
             }
 
+            document.getElementById('btn-excel').disabled = true;
+            document.getElementById('btn-excel').textContent = '処理中...';
+
             const data = {
                 records: currentRecords.map(r => ({ ...r, userName: currentUser.name }))
             };
 
-            const blob = await window.WhaleStorage.exportExcel(data);
+            await window.WhaleStorage.exportExcel(data);
             window.showToast('Excelをダウンロードしました', 'success');
 
         } catch (error) {
             console.error('Excel export error:', error);
             window.showToast('Excel出力エラー: ' + error.message, 'error');
+        } finally {
+            document.getElementById('btn-excel').disabled = false;
+            document.getElementById('btn-excel').textContent = '📊 Excel出力';
         }
     }
 
@@ -337,7 +363,7 @@
             }
 
             // CSVヘッダー
-            const headers = ['日付', '体温', '血圧(高)', '血圧(低)', '脈拍', 'SpO2', '気分スコア', '朝食', '昼食', '夕食', '運動'];
+            const headers = ['日付', '体温', '血圧(高)', '血圧(低)', '脈拍', 'SpO2', '気分スコア', '朝食', '昼食', '夕食', '運動', '入浴'];
             let csv = headers.join(',') + '\n';
 
             currentRecords.forEach(record => {
@@ -352,7 +378,8 @@
                     record.breakfast ? '有' : '無',
                     record.lunch ? '有' : '無',
                     record.dinner ? '有' : '無',
-                    record.exercise ? '有' : '無'
+                    record.exercise ? '有' : '無',
+                    record.bathing ? '有' : '無'
                 ];
                 csv += row.join(',') + '\n';
             });
@@ -381,7 +408,12 @@
 
             const data = {
                 exportDate: new Date().toISOString(),
-                version: '2.1.0',
+                version: '2.2.0',
+                user: {
+                    id: currentUser._id,
+                    name: currentUser.name,
+                    organizationId: currentUser.organizationId
+                },
                 records: currentRecords
             };
 
@@ -403,6 +435,7 @@
     function calculateAnalytics() {
         const temperatures = currentRecords.map(r => r.temperature).filter(Boolean);
         const moodScores = currentRecords.map(r => r.moodScore).filter(Boolean);
+        const bloodPressureHigh = currentRecords.map(r => r.bloodPressureHigh).filter(Boolean);
 
         return {
             totalRecords: currentRecords.length,
@@ -411,7 +444,15 @@
                 : 0,
             avgMoodScore: moodScores.length > 0
                 ? moodScores.reduce((a, b) => a + b, 0) / moodScores.length
-                : 0
+                : 0,
+            avgBloodPressureHigh: bloodPressureHigh.length > 0
+                ? bloodPressureHigh.reduce((a, b) => a + b, 0) / bloodPressureHigh.length
+                : 0,
+            breakfastRate: (currentRecords.filter(r => r.breakfast).length / currentRecords.length) * 100,
+            lunchRate: (currentRecords.filter(r => r.lunch).length / currentRecords.length) * 100,
+            dinnerRate: (currentRecords.filter(r => r.dinner).length / currentRecords.length) * 100,
+            exerciseRate: (currentRecords.filter(r => r.exercise).length / currentRecords.length) * 100,
+            bathingRate: (currentRecords.filter(r => r.bathing).length / currentRecords.length) * 100
         };
     }
 </script>
