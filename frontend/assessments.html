@@ -142,9 +142,13 @@
         <div id="assessment-detail-content" class="space-y-4">
             <!-- 動的に生成 -->
         </div>
-        <div class="mt-6">
+        <div class="mt-6 flex gap-4">
+            <button onclick="printCurrentAssessment()"
+                    class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition">
+                🖨️ 印刷
+            </button>
             <button onclick="closeViewAssessmentModal()"
-                    class="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg transition">
+                    class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg transition">
                 閉じる
             </button>
         </div>
@@ -158,6 +162,7 @@
 
     let allAssessments = [];
     let allUsers = [];
+    let currentViewingAssessmentId = null;
 
     (async function initAssessments() {
         try {
@@ -188,6 +193,13 @@
 
             // フォーム送信
             document.getElementById('create-assessment-form').addEventListener('submit', handleCreateAssessment);
+
+            // データ変更監視
+            window.addEventListener('whale:datachange', (e) => {
+                if (e.detail.change.doc?.type === 'assessment') {
+                    loadAssessments();
+                }
+            });
 
         } catch (error) {
             console.error('Assessments init error:', error);
@@ -250,7 +262,6 @@
 
     function showCreateAssessmentModal() {
         document.getElementById('create-assessment-modal').classList.remove('hidden');
-        // 今日の日付を設定
         document.querySelector('input[name="assessmentDate"]').valueAsDate = new Date();
     }
 
@@ -291,6 +302,7 @@
         const assessment = allAssessments.find(a => a._id === assessmentId);
         if (!assessment) return;
 
+        currentViewingAssessmentId = assessmentId;
         const user = allUsers.find(u => u._id === assessment.userId);
 
         const content = `
@@ -305,31 +317,31 @@
                 </div>
                 <div>
                     <label class="text-sm text-gray-600 font-medium">生活状況</label>
-                    <div class="mt-1 text-gray-800">${assessment.livingCondition || '-'}</div>
+                    <div class="mt-1 text-gray-800 whitespace-pre-wrap">${assessment.livingCondition || '-'}</div>
                 </div>
                 <div>
                     <label class="text-sm text-gray-600 font-medium">健康状態</label>
-                    <div class="mt-1 text-gray-800">${assessment.healthCondition || '-'}</div>
+                    <div class="mt-1 text-gray-800 whitespace-pre-wrap">${assessment.healthCondition || '-'}</div>
                 </div>
                 <div>
                     <label class="text-sm text-gray-600 font-medium">ADL（日常生活動作）</label>
-                    <div class="mt-1 text-gray-800">${assessment.adl || '-'}</div>
+                    <div class="mt-1 text-gray-800 whitespace-pre-wrap">${assessment.adl || '-'}</div>
                 </div>
                 <div>
                     <label class="text-sm text-gray-600 font-medium">コミュニケーション能力</label>
-                    <div class="mt-1 text-gray-800">${assessment.communication || '-'}</div>
+                    <div class="mt-1 text-gray-800 whitespace-pre-wrap">${assessment.communication || '-'}</div>
                 </div>
                 <div>
                     <label class="text-sm text-gray-600 font-medium">社会参加状況</label>
-                    <div class="mt-1 text-gray-800">${assessment.socialParticipation || '-'}</div>
+                    <div class="mt-1 text-gray-800 whitespace-pre-wrap">${assessment.socialParticipation || '-'}</div>
                 </div>
                 <div>
                     <label class="text-sm text-gray-600 font-medium">ニーズと課題</label>
-                    <div class="mt-1 text-gray-800">${assessment.needs || '-'}</div>
+                    <div class="mt-1 text-gray-800 whitespace-pre-wrap">${assessment.needs || '-'}</div>
                 </div>
                 <div>
                     <label class="text-sm text-gray-600 font-medium">支援方針</label>
-                    <div class="mt-1 text-gray-800">${assessment.supportPlan || '-'}</div>
+                    <div class="mt-1 text-gray-800 whitespace-pre-wrap">${assessment.supportPlan || '-'}</div>
                 </div>
                 <div>
                     <label class="text-sm text-gray-600 font-medium">作成日時</label>
@@ -344,5 +356,20 @@
 
     function closeViewAssessmentModal() {
         document.getElementById('view-assessment-modal').classList.add('hidden');
+        currentViewingAssessmentId = null;
+    }
+
+    async function printCurrentAssessment() {
+        if (!currentViewingAssessmentId) {
+            window.showToast('印刷するアセスメントが選択されていません', 'error');
+            return;
+        }
+
+        try {
+            await window.WhaleStorage.printAssessment(currentViewingAssessmentId);
+        } catch (error) {
+            console.error('Print error:', error);
+            window.showToast('印刷エラー: ' + error.message, 'error');
+        }
     }
 </script>
