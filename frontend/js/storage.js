@@ -1,16 +1,18 @@
 /**
  * WHALE Storage Manager - 完全修正版
- * LocalStorage + PouchDB統合データ管理
- * @version 2.1.0
+ * LocalStorage + PouchDB統合データ管理 + リアルタイム同期
+ * @version 2.2.0
  */
 
 class WhaleStorageManager {
     constructor() {
-        this.version = '2.1.0';
+        this.version = '2.2.0';
         this.prefix = 'whale_';
         this.db = null;
         this.syncHandler = null;
         this.initialized = false;
+        this.syncEnabled = true;
+        this.changeListeners = new Map();
     }
 
     /**
@@ -20,7 +22,7 @@ class WhaleStorageManager {
         if (this.initialized) return;
 
         try {
-            console.log('🔄 Initializing PouchDB...');
+            console.log('🔄 Initializing PouchDB with Find Plugin...');
             
             // PouchDBの存在確認
             if (typeof PouchDB === 'undefined') {
@@ -28,7 +30,10 @@ class WhaleStorageManager {
             }
 
             // PouchDB初期化
-            this.db = new PouchDB('whale_database');
+            this.db = new PouchDB('whale_database', {
+                auto_compaction: true,
+                revs_limit: 10
+            });
             
             // Find Pluginの確認
             if (typeof this.db.find !== 'function') {
@@ -42,6 +47,14 @@ class WhaleStorageManager {
 
             // LocalStorage初期設定
             this.initLocalStorage();
+
+            // 変更監視開始
+            this.startChangeMonitoring();
+
+            // 同期開始
+            if (this.syncEnabled) {
+                await this.startSync();
+            }
 
             this.initialized = true;
             console.log('✅ Storage initialization complete');
@@ -61,7 +74,10 @@ class WhaleStorageManager {
             { fields: ['type', 'organizationId'] },
             { fields: ['type', 'recordDate'] },
             { fields: ['type', 'userId', 'recordDate'] },
-            { fields: ['type', 'organizationId', 'userId'] }
+            { fields: ['type', 'organizationId', 'userId'] },
+            { fields: ['type', 'attendanceDate'] },
+            { fields: ['type', 'assessmentDate'] },
+            { fields: ['type', 'startDate'] }
         ];
 
         for (const index of indexes) {
@@ -71,7 +87,64 @@ class WhaleStorageManager {
                 console.warn('Index creation warning:', error);
             }
         }
-        console.log('✅ Indexes created');
+        console.log('✅ All indexes created');
+    }
+
+    /**
+     * 変更監視開始
+     */
+    startChangeMonitoring() {
+        this.db.changes({
+            since: 'now',
+            live: true,
+            include_docs: true
+        }).on('change', (change) => {
+            console.log('🔔 Database change detected:', change.id);
+            this.notifyListeners(change);
+            
+            // カスタムイベント発火
+            window.dispatchEvent(new CustomEvent('whale:datachange', {
+                detail: { change }
+            }));
+        }).on('error', (err) => {
+            console.error('Change monitoring error:', err);
+        });
+    }
+
+    /**
+     * 変更リスナー登録
+     */
+    addChangeListener(id, callback) {
+        this.changeListeners.set(id, callback);
+    }
+
+    /**
+     * 変更リスナー削除
+     */
+    removeChangeListener(id) {
+        this.changeListeners.delete(id);
+    }
+
+    /**
+     * リスナーに通知
+     */
+    notifyListeners(change) {
+        this.changeListeners.forEach((callback) => {
+            try {
+                callback(change);
+            } catch (error) {
+                console.error('Listener callback error:', error);
+            }
+        });
+    }
+
+    /**
+     * 同期開始
+     */
+    async startSync() {
+        // リアルタイム同期の実装
+        // 本番環境ではCouchDB/RemotePouchDBと同期
+        console.log('🔄 Sync enabled (local only in this version)');
     }
 
     /**
@@ -145,6 +218,11 @@ class WhaleStorageManager {
                 updatedAt: new Date().toISOString()
             };
 
+            // _revが存在する場合は削除（新規作成の場合）
+            if (!data._rev) {
+                delete doc._rev;
+            }
+
             const result = await this.db.put(doc);
             console.log('✅ Document saved:', result.id);
             return { ...doc, _rev: result.rev };
@@ -169,7 +247,7 @@ class WhaleStorageManager {
         try {
             const doc = await this.get(id);
             if (!doc) {
-                throw new Error('Document not found');
+                throw new Error('Document not found: ' + id);
             }
 
             const updated = {
@@ -178,7 +256,9 @@ class WhaleStorageManager {
                 updatedAt: new Date().toISOString()
             };
 
-            return await this.save(updated.type, updated);
+            const result = await this.db.put(updated);
+            console.log('✅ Document updated:', result.id);
+            return { ...updated, _rev: result.rev };
         } catch (error) {
             console.error('❌ Update error:', error);
             throw error;
@@ -204,6 +284,7 @@ class WhaleStorageManager {
         try {
             const result = await this.db.find({
                 selector: { type: type },
+                sort: [{ 'createdAt': 'desc' }],
                 ...options
             });
             return result.docs;
@@ -220,6 +301,7 @@ class WhaleStorageManager {
                     type: type,
                     userId: userId
                 },
+                sort: [{ 'createdAt': 'desc' }],
                 ...options
             });
             return result.docs;
@@ -329,18 +411,23 @@ class WhaleStorageManager {
         const currentUser = await this.getCurrentUser();
         const organizationId = data.organizationId || currentUser?.organizationId;
         
-        // 既存レコード確認
+        // 既存レコード確認（修正版）
         const existing = await this.db.find({
             selector: {
                 type: 'daily_record',
                 userId: data.userId,
                 recordDate: data.recordDate
-            }
+            },
+            limit: 1
         });
 
         if (existing.docs.length > 0) {
             // 更新
-            return await this.update(existing.docs[0]._id, data);
+            const doc = existing.docs[0];
+            return await this.update(doc._id, {
+                ...data,
+                organizationId: organizationId
+            });
         } else {
             // 新規作成
             return await this.save('daily_record', {
@@ -351,27 +438,44 @@ class WhaleStorageManager {
     }
 
     async getDailyRecords(userId, startDate, endDate) {
-        return await this.findByDateRange('daily_record', startDate, endDate, {
-            selector: {
-                type: 'daily_record',
-                userId: userId,
-                recordDate: {
-                    $gte: startDate,
-                    $lte: endDate
-                }
-            }
-        });
+        try {
+            const result = await this.db.find({
+                selector: {
+                    type: 'daily_record',
+                    userId: userId,
+                    recordDate: {
+                        $gte: startDate,
+                        $lte: endDate
+                    }
+                },
+                sort: [{ recordDate: 'desc' }]
+            });
+            return result.docs;
+        } catch (error) {
+            console.error('Get daily records error:', error);
+            return [];
+        }
     }
 
     async getTodayRecord(userId) {
         const today = new Date().toISOString().split('T')[0];
-        const records = await this.findByDateRange('daily_record', today, today);
-        return records.find(r => r.userId === userId) || null;
+        const records = await this.getDailyRecords(userId, today, today);
+        return records[0] || null;
     }
 
     async getAttendance(date) {
-        const records = await this.findByType('attendance');
-        return records.filter(r => r.attendanceDate === date);
+        try {
+            const result = await this.db.find({
+                selector: {
+                    type: 'attendance',
+                    attendanceDate: date
+                }
+            });
+            return result.docs;
+        } catch (error) {
+            console.error('Get attendance error:', error);
+            return [];
+        }
     }
 
     async saveAttendance(data) {
@@ -384,11 +488,15 @@ class WhaleStorageManager {
                 type: 'attendance',
                 userId: data.userId,
                 attendanceDate: data.attendanceDate
-            }
+            },
+            limit: 1
         });
 
         if (existing.docs.length > 0) {
-            return await this.update(existing.docs[0]._id, data);
+            return await this.update(existing.docs[0]._id, {
+                ...data,
+                organizationId: organizationId
+            });
         } else {
             return await this.save('attendance', {
                 ...data,
@@ -423,10 +531,203 @@ class WhaleStorageManager {
         });
     }
 
+    // ==================== 印刷機能 ====================
+
+    async printAssessment(assessmentId) {
+        try {
+            const assessment = await this.get(assessmentId);
+            if (!assessment) throw new Error('Assessment not found');
+
+            const users = await this.getUsers();
+            const user = users.find(u => u._id === assessment.userId);
+
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(this.generateAssessmentHTML(assessment, user));
+            printWindow.document.close();
+            
+            printWindow.onload = () => {
+                printWindow.print();
+            };
+        } catch (error) {
+            console.error('Print assessment error:', error);
+            throw error;
+        }
+    }
+
+    generateAssessmentHTML(assessment, user) {
+        return `
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>アセスメント - ${user?.name || '利用者'}</title>
+    <style>
+        body { font-family: 'MS Gothic', sans-serif; padding: 40px; }
+        h1 { text-align: center; border-bottom: 3px solid #333; padding-bottom: 10px; }
+        .section { margin: 30px 0; page-break-inside: avoid; }
+        .label { font-weight: bold; color: #555; margin-top: 15px; }
+        .content { margin-left: 20px; padding: 10px; background: #f9f9f9; border-left: 3px solid #3b82f6; }
+        .header-info { display: flex; justify-content: space-between; margin-bottom: 30px; }
+        @media print {
+            body { padding: 20px; }
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <h1>アセスメント</h1>
+    <div class="header-info">
+        <div><strong>利用者:</strong> ${user?.name || '不明'}</div>
+        <div><strong>アセスメント日:</strong> ${assessment.assessmentDate ? new Date(assessment.assessmentDate).toLocaleDateString('ja-JP') : '-'}</div>
+    </div>
+
+    <div class="section">
+        <div class="label">生活状況</div>
+        <div class="content">${assessment.livingCondition || '-'}</div>
+    </div>
+
+    <div class="section">
+        <div class="label">健康状態</div>
+        <div class="content">${assessment.healthCondition || '-'}</div>
+    </div>
+
+    <div class="section">
+        <div class="label">ADL（日常生活動作）</div>
+        <div class="content">${assessment.adl || '-'}</div>
+    </div>
+
+    <div class="section">
+        <div class="label">コミュニケーション能力</div>
+        <div class="content">${assessment.communication || '-'}</div>
+    </div>
+
+    <div class="section">
+        <div class="label">社会参加状況</div>
+        <div class="content">${assessment.socialParticipation || '-'}</div>
+    </div>
+
+    <div class="section">
+        <div class="label">ニーズと課題</div>
+        <div class="content">${assessment.needs || '-'}</div>
+    </div>
+
+    <div class="section">
+        <div class="label">支援方針</div>
+        <div class="content">${assessment.supportPlan || '-'}</div>
+    </div>
+
+    <div style="margin-top: 50px; text-align: right; font-size: 12px; color: #666;">
+        作成日時: ${assessment.createdAt ? new Date(assessment.createdAt).toLocaleString('ja-JP') : '-'}
+    </div>
+
+    <div class="no-print" style="margin-top: 30px; text-align: center;">
+        <button onclick="window.print()" style="padding: 10px 30px; font-size: 16px; cursor: pointer;">印刷</button>
+        <button onclick="window.close()" style="padding: 10px 30px; font-size: 16px; cursor: pointer; margin-left: 10px;">閉じる</button>
+    </div>
+</body>
+</html>
+        `;
+    }
+
+    async printServicePlan(planId) {
+        try {
+            const plan = await this.get(planId);
+            if (!plan) throw new Error('Service plan not found');
+
+            const users = await this.getUsers();
+            const user = users.find(u => u._id === plan.userId);
+
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(this.generateServicePlanHTML(plan, user));
+            printWindow.document.close();
+            
+            printWindow.onload = () => {
+                printWindow.print();
+            };
+        } catch (error) {
+            console.error('Print service plan error:', error);
+            throw error;
+        }
+    }
+
+    generateServicePlanHTML(plan, user) {
+        return `
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>サービス利用計画 - ${user?.name || '利用者'}</title>
+    <style>
+        body { font-family: 'MS Gothic', sans-serif; padding: 40px; }
+        h1 { text-align: center; border-bottom: 3px solid #333; padding-bottom: 10px; }
+        .section { margin: 30px 0; page-break-inside: avoid; }
+        .label { font-weight: bold; color: #555; margin-top: 15px; }
+        .content { margin-left: 20px; padding: 10px; background: #f9f9f9; border-left: 3px solid #10b981; }
+        .header-info { display: flex; justify-content: space-between; margin-bottom: 30px; }
+        @media print {
+            body { padding: 20px; }
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <h1>サービス利用計画書</h1>
+    <div class="header-info">
+        <div><strong>利用者:</strong> ${user?.name || '不明'}</div>
+        <div><strong>計画期間:</strong> ${plan.startDate ? new Date(plan.startDate).toLocaleDateString('ja-JP') : '-'} ～ ${plan.endDate ? new Date(plan.endDate).toLocaleDateString('ja-JP') : '-'}</div>
+    </div>
+
+    <div class="section">
+        <div class="label">利用者の希望</div>
+        <div class="content">${plan.userWish || '-'}</div>
+    </div>
+
+    <div class="section">
+        <div class="label">総合的な支援方針</div>
+        <div class="content">${plan.overallPolicy || '-'}</div>
+    </div>
+
+    <div class="section">
+        <div class="label">長期目標</div>
+        <div class="content">${plan.longTermGoal || '-'}</div>
+    </div>
+
+    <div class="section">
+        <div class="label">短期目標</div>
+        <div class="content">${plan.shortTermGoal || '-'}</div>
+    </div>
+
+    <div class="section">
+        <div class="label">具体的なサービス内容</div>
+        <div class="content">${plan.serviceContent || '-'}</div>
+    </div>
+
+    <div class="section">
+        <div class="label">週間計画</div>
+        <div class="content">${plan.weeklyPlan || '-'}</div>
+    </div>
+
+    <div class="section">
+        <div class="label">緊急時の対応</div>
+        <div class="content">${plan.emergencyResponse || '-'}</div>
+    </div>
+
+    <div style="margin-top: 50px; text-align: right; font-size: 12px; color: #666;">
+        作成日時: ${plan.createdAt ? new Date(plan.createdAt).toLocaleString('ja-JP') : '-'}
+    </div>
+
+    <div class="no-print" style="margin-top: 30px; text-align: center;">
+        <button onclick="window.print()" style="padding: 10px 30px; font-size: 16px; cursor: pointer;">印刷</button>
+        <button onclick="window.close()" style="padding: 10px 30px; font-size: 16px; cursor: pointer; margin-left: 10px;">閉じる</button>
+    </div>
+</body>
+</html>
+        `;
+    }
+
     // ==================== エクスポート機能 ====================
 
     async exportPDF(data) {
-        // バックエンドAPI経由でPDF生成
         const response = await fetch(`${window.WHALE.API_URL}/api/export/pdf`, {
             method: 'POST',
             headers: {
@@ -649,6 +950,6 @@ class WhaleStorageManager {
 // グローバルインスタンス作成
 window.WhaleStorage = new WhaleStorageManager();
 
-console.log('🐋 WHALE Storage Manager loaded (v2.1.0)');
+console.log('🐋 WHALE Storage Manager loaded (v2.2.0 - Fixed)');
 
 export default window.WhaleStorage;
