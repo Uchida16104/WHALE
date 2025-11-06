@@ -44,19 +44,19 @@
                 <h3 class="text-lg font-semibold text-gray-800 mb-4">食事</h3>
                 <div class="space-y-4">
                     <div class="flex items-center space-x-4">
-                        <label class="flex items-center">
+                        <label class="flex items-center cursor-pointer">
                             <input type="checkbox" name="breakfast" value="1" class="w-5 h-5 text-blue-600 rounded">
                             <span class="ml-2 font-medium">朝食</span>
                         </label>
                     </div>
                     <div class="flex items-center space-x-4">
-                        <label class="flex items-center">
+                        <label class="flex items-center cursor-pointer">
                             <input type="checkbox" name="lunch" value="1" class="w-5 h-5 text-blue-600 rounded">
                             <span class="ml-2 font-medium">昼食</span>
                         </label>
                     </div>
                     <div class="flex items-center space-x-4">
-                        <label class="flex items-center">
+                        <label class="flex items-center cursor-pointer">
                             <input type="checkbox" name="dinner" value="1" class="w-5 h-5 text-blue-600 rounded">
                             <span class="ml-2 font-medium">夕食</span>
                         </label>
@@ -121,19 +121,19 @@
             <div class="bg-white border rounded-lg p-6">
                 <h3 class="text-lg font-semibold text-gray-800 mb-4">身体ケア・活動</h3>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                    <label class="flex items-center">
+                    <label class="flex items-center cursor-pointer">
                         <input type="checkbox" name="bathing" value="1" class="w-5 h-5 text-blue-600 rounded">
                         <span class="ml-2">入浴</span>
                     </label>
-                    <label class="flex items-center">
+                    <label class="flex items-center cursor-pointer">
                         <input type="checkbox" name="faceWash" value="1" class="w-5 h-5 text-blue-600 rounded">
                         <span class="ml-2">洗面</span>
                     </label>
-                    <label class="flex items-center">
+                    <label class="flex items-center cursor-pointer">
                         <input type="checkbox" name="toothBrushing" value="1" class="w-5 h-5 text-blue-600 rounded">
                         <span class="ml-2">歯磨き</span>
                     </label>
-                    <label class="flex items-center">
+                    <label class="flex items-center cursor-pointer">
                         <input type="checkbox" name="exercise" value="1" class="w-5 h-5 text-blue-600 rounded">
                         <span class="ml-2">運動</span>
                     </label>
@@ -158,6 +158,9 @@
         htmx.ajax('GET', url, { target: '#main-content', swap: 'innerHTML', pushUrl: true });
     }
 
+    let currentRecordId = null;
+    let autoSaveInterval = null;
+
     (async function initDailyRecord() {
         try {
             const user = await window.WhaleStorage.getCurrentUser();
@@ -175,6 +178,7 @@
             // 今日の記録取得
             const record = await window.WhaleStorage.getTodayRecord(user._id);
             if (record) {
+                currentRecordId = record._id;
                 loadRecordData(record);
             }
 
@@ -182,17 +186,44 @@
             const moodSlider = document.getElementById('mood-score');
             const moodDisplay = document.getElementById('mood-score-value');
             if (moodSlider && moodDisplay) {
-                moodSlider.addEventListener('input', () => moodDisplay.textContent = moodSlider.value);
+                moodSlider.addEventListener('input', () => {
+                    moodDisplay.textContent = moodSlider.value;
+                });
             }
 
             // フォーム送信
             setupFormSubmit(user);
+
+            // 自動保存（5分ごと）
+            autoSaveInterval = setInterval(() => {
+                autoSave(user);
+            }, 300000);
+
+            // データ変更監視
+            window.addEventListener('whale:datachange', async (e) => {
+                if (e.detail.change.doc?.type === 'daily_record' && 
+                    e.detail.change.doc?.userId === user._id &&
+                    e.detail.change.doc?.recordDate === today.toISOString().split('T')[0]) {
+                    console.log('Daily record updated externally');
+                    const updatedRecord = await window.WhaleStorage.getTodayRecord(user._id);
+                    if (updatedRecord) {
+                        loadRecordData(updatedRecord);
+                    }
+                }
+            });
 
         } catch (error) {
             console.error('Daily record initialization error:', error);
             window.showToast('初期化エラーが発生しました: ' + error.message, 'error');
         }
     })();
+
+    // ページ離脱時にクリーンアップ
+    window.addEventListener('beforeunload', () => {
+        if (autoSaveInterval) {
+            clearInterval(autoSaveInterval);
+        }
+    });
 
     function loadRecordData(record) {
         const form = document.getElementById('daily-record-form');
@@ -206,6 +237,12 @@
                 }
             }
         });
+
+        // 気分スコア表示更新
+        const moodDisplay = document.getElementById('mood-score-value');
+        if (moodDisplay && record.moodScore) {
+            moodDisplay.textContent = record.moodScore;
+        }
     }
 
     function setupFormSubmit(user) {
@@ -237,7 +274,8 @@
                 }
 
                 // 保存
-                await window.WhaleStorage.saveDailyRecord(data);
+                const savedRecord = await window.WhaleStorage.saveDailyRecord(data);
+                currentRecordId = savedRecord._id;
 
                 successDiv.textContent = '✅ 記録を保存しました';
                 successDiv.classList.remove('hidden');
@@ -253,5 +291,38 @@
                 button.textContent = '保存する';
             }
         });
+    }
+
+    async function autoSave(user) {
+        try {
+            const form = document.getElementById('daily-record-form');
+            const formData = new FormData(form);
+            const data = {
+                userId: user._id,
+                recordDate: new Date().toISOString().split('T')[0]
+            };
+
+            // フォームデータを変換
+            for (let [key, value] of formData.entries()) {
+                if (form.elements[key].type === 'checkbox') {
+                    data[key] = form.elements[key].checked;
+                } else if (form.elements[key].type === 'number') {
+                    data[key] = value ? parseFloat(value) : null;
+                } else {
+                    data[key] = value || null;
+                }
+            }
+
+            // 何かデータがあれば自動保存
+            const hasData = Object.values(data).some(v => v !== null && v !== '' && v !== user._id && v !== data.recordDate);
+            
+            if (hasData) {
+                await window.WhaleStorage.saveDailyRecord(data);
+                console.log('Auto-saved at', new Date().toLocaleTimeString());
+            }
+
+        } catch (error) {
+            console.error('Auto-save error:', error);
+        }
     }
 </script>
