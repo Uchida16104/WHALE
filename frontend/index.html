@@ -25,7 +25,6 @@
     <link rel="stylesheet" href="css/styles.css">
     
     <style>
-        /* ローディング画面 */
         #loading-screen {
             position: fixed;
             top: 0;
@@ -129,7 +128,7 @@
         window.WHALE = {
             API_URL: 'https://whale-backend-84p5.onrender.com',
             GITHUB_PAGES_URL: 'https://uchida16104.github.io/WHALE',
-            VERSION: '2.0.0'
+            VERSION: '2.2.0'
         };
 
         // 初期化
@@ -198,7 +197,7 @@
                 const org = await window.WhaleStorage.getOrganization(user.organizationId);
                 
                 document.getElementById('user-name').textContent = user.name;
-                document.getElementById('org-name').textContent = org.name;
+                document.getElementById('org-name').textContent = org ? org.name : user.organizationId;
                 
                 const roleMap = {
                     'admin': '管理者',
@@ -277,7 +276,7 @@
             });
         }
 
-        console.log('🐋 WHALE System Ready');
+        console.log('🐋 WHALE System Ready (v2.2.0)');
     </script>
 </body>
 </html>
