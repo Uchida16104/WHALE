@@ -65,6 +65,15 @@
 
             setToday();
             await loadAttendance();
+
+            // データ変更監視
+            window.addEventListener('whale:datachange', async (e) => {
+                if (e.detail.change.doc?.type === 'attendance') {
+                    console.log('Attendance: Data change detected, reloading...');
+                    await loadAttendance();
+                }
+            });
+
         } catch (error) {
             console.error('Attendance init error:', error);
             window.showToast('初期化エラー: ' + error.message, 'error');
