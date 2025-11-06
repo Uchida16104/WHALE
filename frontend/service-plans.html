@@ -151,9 +151,13 @@
         <div id="plan-detail-content" class="space-y-4">
             <!-- 動的に生成 -->
         </div>
-        <div class="mt-6">
+        <div class="mt-6 flex gap-4">
+            <button onclick="printCurrentPlan()"
+                    class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition">
+                🖨️ 印刷
+            </button>
             <button onclick="closeViewPlanModal()"
-                    class="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg transition">
+                    class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg transition">
                 閉じる
             </button>
         </div>
@@ -167,6 +171,7 @@
 
     let allPlans = [];
     let allUsers = [];
+    let currentViewingPlanId = null;
 
     (async function initServicePlans() {
         try {
@@ -197,6 +202,13 @@
 
             // フォーム送信
             document.getElementById('create-plan-form').addEventListener('submit', handleCreatePlan);
+
+            // データ変更監視
+            window.addEventListener('whale:datachange', (e) => {
+                if (e.detail.change.doc?.type === 'service_plan') {
+                    loadPlans();
+                }
+            });
 
         } catch (error) {
             console.error('Service plans init error:', error);
@@ -260,10 +272,8 @@
 
     function showCreatePlanModal() {
         document.getElementById('create-plan-modal').classList.remove('hidden');
-        // 今日の日付を設定
         const today = new Date();
         document.querySelector('input[name="startDate"]').valueAsDate = today;
-        // 6ヶ月後を終了日に設定
         const endDate = new Date(today);
         endDate.setMonth(endDate.getMonth() + 6);
         document.querySelector('input[name="endDate"]').valueAsDate = endDate;
@@ -307,6 +317,7 @@
         const plan = allPlans.find(p => p._id === planId);
         if (!plan) return;
 
+        currentViewingPlanId = planId;
         const user = allUsers.find(u => u._id === plan.userId);
 
         const content = `
@@ -365,5 +376,20 @@
 
     function closeViewPlanModal() {
         document.getElementById('view-plan-modal').classList.add('hidden');
+        currentViewingPlanId = null;
+    }
+
+    async function printCurrentPlan() {
+        if (!currentViewingPlanId) {
+            window.showToast('印刷するサービス計画が選択されていません', 'error');
+            return;
+        }
+
+        try {
+            await window.WhaleStorage.printServicePlan(currentViewingPlanId);
+        } catch (error) {
+            console.error('Print error:', error);
+            window.showToast('印刷エラー: ' + error.message, 'error');
+        }
     }
 </script>
