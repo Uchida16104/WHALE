@@ -1,12 +1,12 @@
 /**
  * WHALE Storage Manager - 完全修正版
  * LocalStorage + PouchDB統合データ管理 + リアルタイム同期
- * @version 2.2.0
+ * @version 2.3.0 - 施設IDエラー完全修正
  */
 
 class WhaleStorageManager {
     constructor() {
-        this.version = '2.2.0';
+        this.version = '2.3.0';
         this.prefix = 'whale_';
         this.db = null;
         this.syncHandler = null;
@@ -24,34 +24,25 @@ class WhaleStorageManager {
         try {
             console.log('🔄 Initializing PouchDB with Find Plugin...');
             
-            // PouchDBの存在確認
             if (typeof PouchDB === 'undefined') {
                 throw new Error('PouchDB is not loaded. Please check CDN connection.');
             }
 
-            // PouchDB初期化
             this.db = new PouchDB('whale_database', {
                 auto_compaction: true,
                 revs_limit: 10
             });
             
-            // Find Pluginの確認
             if (typeof this.db.find !== 'function') {
                 throw new Error('PouchDB Find Plugin is not loaded. Please check CDN connection.');
             }
             
             console.log('✅ PouchDB initialized with Find Plugin');
 
-            // インデックス作成
             await this.createIndexes();
-
-            // LocalStorage初期設定
             this.initLocalStorage();
-
-            // 変更監視開始
             this.startChangeMonitoring();
 
-            // 同期開始
             if (this.syncEnabled) {
                 await this.startSync();
             }
@@ -70,8 +61,8 @@ class WhaleStorageManager {
     async createIndexes() {
         const indexes = [
             { fields: ['type'] },
-            { fields: ['type', 'userId'] },
             { fields: ['type', 'organizationId'] },
+            { fields: ['type', 'userId'] },
             { fields: ['type', 'recordDate'] },
             { fields: ['type', 'userId', 'recordDate'] },
             { fields: ['type', 'organizationId', 'userId'] },
@@ -102,7 +93,6 @@ class WhaleStorageManager {
             console.log('🔔 Database change detected:', change.id);
             this.notifyListeners(change);
             
-            // カスタムイベント発火
             window.dispatchEvent(new CustomEvent('whale:datachange', {
                 detail: { change }
             }));
@@ -111,23 +101,14 @@ class WhaleStorageManager {
         });
     }
 
-    /**
-     * 変更リスナー登録
-     */
     addChangeListener(id, callback) {
         this.changeListeners.set(id, callback);
     }
 
-    /**
-     * 変更リスナー削除
-     */
     removeChangeListener(id) {
         this.changeListeners.delete(id);
     }
 
-    /**
-     * リスナーに通知
-     */
     notifyListeners(change) {
         this.changeListeners.forEach((callback) => {
             try {
@@ -138,18 +119,10 @@ class WhaleStorageManager {
         });
     }
 
-    /**
-     * 同期開始
-     */
     async startSync() {
-        // リアルタイム同期の実装
-        // 本番環境ではCouchDB/RemotePouchDBと同期
         console.log('🔄 Sync enabled (local only in this version)');
     }
 
-    /**
-     * LocalStorage初期設定
-     */
     initLocalStorage() {
         const defaults = {
             settings: {
@@ -218,7 +191,6 @@ class WhaleStorageManager {
                 updatedAt: new Date().toISOString()
             };
 
-            // _revが存在する場合は削除（新規作成の場合）
             if (!data._rev) {
                 delete doc._rev;
             }
@@ -331,46 +303,116 @@ class WhaleStorageManager {
         }
     }
 
-    // ==================== 高レベルAPI ====================
+    // ==================== 高レベルAPI（修正版） ====================
 
+    /**
+     * 組織作成
+     */
     async createOrganization(data) {
-        return await this.save('organization', {
-            organizationId: data.organizationId,
-            name: data.name,
-            postalCode: data.postalCode,
-            address: data.address,
-            phone: data.phone,
-            establishedDate: data.establishedDate
-        });
-    }
+        try {
+            console.log('📝 Creating organization:', data.organizationId);
+            
+            // 既存チェック（エラーにしない）
+            const existing = await this.getOrganization(data.organizationId);
+            if (existing) {
+                console.warn('⚠️ Organization already exists, returning existing:', existing._id);
+                return existing;
+            }
 
-    async getOrganization(organizationId) {
-        const orgs = await this.findByType('organization');
-        return orgs.find(o => o.organizationId === organizationId);
-    }
+            const org = await this.save('organization', {
+                organizationId: data.organizationId,
+                name: data.name,
+                postalCode: data.postalCode,
+                address: data.address,
+                phone: data.phone,
+                establishedDate: data.establishedDate
+            });
 
-    async createUser(data) {
-        const currentUser = await this.getCurrentUser();
-        const organizationId = data.organizationId || currentUser?.organizationId;
-        
-        // パスワードハッシュ化
-        let passwordHash = data.passwordHash;
-        if (data.password && !passwordHash) {
-            passwordHash = await this.hashPassword(data.password);
+            console.log('✅ Organization created:', org._id);
+            return org;
+        } catch (error) {
+            console.error('❌ Create organization error:', error);
+            throw new Error('組織の作成に失敗しました: ' + error.message);
         }
+    }
 
-        return await this.save('user', {
-            userId: data.userId,
-            organizationId: organizationId,
-            name: data.name,
-            nameKana: data.nameKana,
-            role: data.role,
-            postalCode: data.postalCode,
-            address: data.address,
-            phone: data.phone,
-            birthday: data.birthday,
-            passwordHash: passwordHash
-        });
+    /**
+     * 組織取得（修正版 - nullを返すが例外は投げない）
+     */
+    async getOrganization(organizationId) {
+        try {
+            console.log('🔍 Searching organization:', organizationId);
+            
+            if (!organizationId) {
+                console.warn('⚠️ organizationId is empty');
+                return null;
+            }
+
+            // 全組織を取得して検索（確実な方法）
+            const allDocs = await this.db.allDocs({
+                include_docs: true,
+                startkey: 'organization_',
+                endkey: 'organization_\ufff0'
+            });
+
+            const orgs = allDocs.rows
+                .filter(row => row.doc && row.doc.type === 'organization')
+                .map(row => row.doc);
+
+            const org = orgs.find(o => o.organizationId === organizationId);
+
+            if (org) {
+                console.log('✅ Organization found:', org._id);
+            } else {
+                console.log('ℹ️ Organization not found:', organizationId);
+            }
+
+            return org || null;
+        } catch (error) {
+            console.error('❌ Get organization error:', error);
+            return null; // エラーでもnullを返す
+        }
+    }
+
+    /**
+     * ユーザー作成
+     */
+    async createUser(data) {
+        try {
+            console.log('📝 Creating user:', data.userId);
+
+            const currentUser = await this.getCurrentUser();
+            const organizationId = data.organizationId || currentUser?.organizationId;
+            
+            if (!organizationId) {
+                throw new Error('組織IDが指定されていません');
+            }
+
+            // パスワードハッシュ化
+            let passwordHash = data.passwordHash;
+            if (data.password && !passwordHash) {
+                passwordHash = await this.hashPassword(data.password);
+            }
+
+            const user = await this.save('user', {
+                userId: data.userId,
+                organizationId: organizationId,
+                name: data.name,
+                nameKana: data.nameKana,
+                role: data.role,
+                postalCode: data.postalCode,
+                address: data.address,
+                phone: data.phone,
+                birthday: data.birthday,
+                passwordHash: passwordHash
+            });
+
+            console.log('✅ User created:', user._id);
+            return user;
+        } catch (error) {
+            console.error('❌ Create user error:', error);
+            throw new Error('ユーザーの作成に失敗しました: ' + error.message);
+        }
     }
 
     async hashPassword(password) {
@@ -381,12 +423,45 @@ class WhaleStorageManager {
         return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
+    /**
+     * 認証情報でユーザー取得（修正版）
+     */
     async getUserByCredentials(organizationId, userId) {
-        const users = await this.findByType('user');
-        return users.find(u => 
-            u.organizationId === organizationId && 
-            u.userId === userId
-        );
+        try {
+            console.log('🔍 Searching user:', organizationId, userId);
+            
+            if (!organizationId || !userId) {
+                console.warn('⚠️ organizationId or userId is empty');
+                return null;
+            }
+
+            // 全ユーザーを取得して検索
+            const allDocs = await this.db.allDocs({
+                include_docs: true,
+                startkey: 'user_',
+                endkey: 'user_\ufff0'
+            });
+
+            const users = allDocs.rows
+                .filter(row => row.doc && row.doc.type === 'user')
+                .map(row => row.doc);
+
+            const user = users.find(u => 
+                u.organizationId === organizationId && 
+                u.userId === userId
+            );
+
+            if (user) {
+                console.log('✅ User found:', user._id);
+            } else {
+                console.log('ℹ️ User not found');
+            }
+
+            return user || null;
+        } catch (error) {
+            console.error('❌ Get user by credentials error:', error);
+            return null;
+        }
     }
 
     async getCurrentUser() {
@@ -411,7 +486,6 @@ class WhaleStorageManager {
         const currentUser = await this.getCurrentUser();
         const organizationId = data.organizationId || currentUser?.organizationId;
         
-        // 既存レコード確認（修正版）
         const existing = await this.db.find({
             selector: {
                 type: 'daily_record',
@@ -422,14 +496,12 @@ class WhaleStorageManager {
         });
 
         if (existing.docs.length > 0) {
-            // 更新
             const doc = existing.docs[0];
             return await this.update(doc._id, {
                 ...data,
                 organizationId: organizationId
             });
         } else {
-            // 新規作成
             return await this.save('daily_record', {
                 ...data,
                 organizationId: organizationId
@@ -482,7 +554,6 @@ class WhaleStorageManager {
         const currentUser = await this.getCurrentUser();
         const organizationId = currentUser?.organizationId;
 
-        // 既存レコード確認
         const existing = await this.db.find({
             selector: {
                 type: 'attendance',
@@ -531,7 +602,7 @@ class WhaleStorageManager {
         });
     }
 
-    // ==================== 印刷機能 ====================
+    // ==================== 印刷・エクスポート機能 ====================
 
     async printAssessment(assessmentId) {
         try {
@@ -580,46 +651,37 @@ class WhaleStorageManager {
         <div><strong>利用者:</strong> ${user?.name || '不明'}</div>
         <div><strong>アセスメント日:</strong> ${assessment.assessmentDate ? new Date(assessment.assessmentDate).toLocaleDateString('ja-JP') : '-'}</div>
     </div>
-
     <div class="section">
         <div class="label">生活状況</div>
         <div class="content">${assessment.livingCondition || '-'}</div>
     </div>
-
     <div class="section">
         <div class="label">健康状態</div>
         <div class="content">${assessment.healthCondition || '-'}</div>
     </div>
-
     <div class="section">
         <div class="label">ADL（日常生活動作）</div>
         <div class="content">${assessment.adl || '-'}</div>
     </div>
-
     <div class="section">
         <div class="label">コミュニケーション能力</div>
         <div class="content">${assessment.communication || '-'}</div>
     </div>
-
     <div class="section">
         <div class="label">社会参加状況</div>
         <div class="content">${assessment.socialParticipation || '-'}</div>
     </div>
-
     <div class="section">
         <div class="label">ニーズと課題</div>
         <div class="content">${assessment.needs || '-'}</div>
     </div>
-
     <div class="section">
         <div class="label">支援方針</div>
         <div class="content">${assessment.supportPlan || '-'}</div>
     </div>
-
     <div style="margin-top: 50px; text-align: right; font-size: 12px; color: #666;">
         作成日時: ${assessment.createdAt ? new Date(assessment.createdAt).toLocaleString('ja-JP') : '-'}
     </div>
-
     <div class="no-print" style="margin-top: 30px; text-align: center;">
         <button onclick="window.print()" style="padding: 10px 30px; font-size: 16px; cursor: pointer;">印刷</button>
         <button onclick="window.close()" style="padding: 10px 30px; font-size: 16px; cursor: pointer; margin-left: 10px;">閉じる</button>
@@ -676,46 +738,37 @@ class WhaleStorageManager {
         <div><strong>利用者:</strong> ${user?.name || '不明'}</div>
         <div><strong>計画期間:</strong> ${plan.startDate ? new Date(plan.startDate).toLocaleDateString('ja-JP') : '-'} ～ ${plan.endDate ? new Date(plan.endDate).toLocaleDateString('ja-JP') : '-'}</div>
     </div>
-
     <div class="section">
         <div class="label">利用者の希望</div>
         <div class="content">${plan.userWish || '-'}</div>
     </div>
-
     <div class="section">
         <div class="label">総合的な支援方針</div>
         <div class="content">${plan.overallPolicy || '-'}</div>
     </div>
-
     <div class="section">
         <div class="label">長期目標</div>
         <div class="content">${plan.longTermGoal || '-'}</div>
     </div>
-
     <div class="section">
         <div class="label">短期目標</div>
         <div class="content">${plan.shortTermGoal || '-'}</div>
     </div>
-
     <div class="section">
         <div class="label">具体的なサービス内容</div>
         <div class="content">${plan.serviceContent || '-'}</div>
     </div>
-
     <div class="section">
         <div class="label">週間計画</div>
         <div class="content">${plan.weeklyPlan || '-'}</div>
     </div>
-
     <div class="section">
         <div class="label">緊急時の対応</div>
         <div class="content">${plan.emergencyResponse || '-'}</div>
     </div>
-
     <div style="margin-top: 50px; text-align: right; font-size: 12px; color: #666;">
         作成日時: ${plan.createdAt ? new Date(plan.createdAt).toLocaleString('ja-JP') : '-'}
     </div>
-
     <div class="no-print" style="margin-top: 30px; text-align: center;">
         <button onclick="window.print()" style="padding: 10px 30px; font-size: 16px; cursor: pointer;">印刷</button>
         <button onclick="window.close()" style="padding: 10px 30px; font-size: 16px; cursor: pointer; margin-left: 10px;">閉じる</button>
@@ -724,8 +777,6 @@ class WhaleStorageManager {
 </html>
         `;
     }
-
-    // ==================== エクスポート機能 ====================
 
     async exportPDF(data) {
         const response = await fetch(`${window.WHALE.API_URL}/api/export/pdf`, {
@@ -950,6 +1001,6 @@ class WhaleStorageManager {
 // グローバルインスタンス作成
 window.WhaleStorage = new WhaleStorageManager();
 
-console.log('🐋 WHALE Storage Manager loaded (v2.2.0 - Fixed)');
+console.log('🐋 WHALE Storage Manager loaded (v2.3.0 - Fixed)');
 
 export default window.WhaleStorage;
