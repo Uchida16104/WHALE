@@ -1,7 +1,7 @@
 /**
- * WHALE Authentication Manager
+ * WHALE Authentication Manager - 完全修正版
  * クライアントサイド認証管理
- * @version 2.0.0
+ * @version 2.3.0 - 施設IDエラー完全修正
  */
 
 class WhaleAuthManager {
@@ -12,8 +12,7 @@ class WhaleAuthManager {
     }
 
     /**
-     * パスワードハッシュ化（簡易版）
-     * 本番環境ではバックエンドで行うべき
+     * パスワードハッシュ化
      */
     async hashPassword(password) {
         const encoder = new TextEncoder();
@@ -24,25 +23,47 @@ class WhaleAuthManager {
     }
 
     /**
-     * 新規登録
+     * 新規登録（完全修正版）
      */
     async register(formData) {
         try {
-            console.log('📝 Registering new organization and user...');
+            console.log('📝 Starting registration process...');
+            console.log('Organization ID:', formData.organizationId);
+            console.log('Admin User ID:', formData.adminUserId);
 
-            // 組織情報検証
-            const existingOrg = await window.WhaleStorage.getOrganization(
-                formData.organizationId
-            );
+            // バリデーション
+            if (!formData.organizationId || !formData.organizationName) {
+                throw new Error('組織情報が不足しています');
+            }
 
-            if (existingOrg) {
-                throw new Error('この施設機関IDは既に使用されています');
+            if (!formData.adminUserId || !formData.adminName || !formData.adminPassword) {
+                throw new Error('管理者情報が不足しています');
             }
 
             // パスワードハッシュ化
             const passwordHash = await this.hashPassword(formData.adminPassword);
+            console.log('✅ Password hashed');
 
-            // 組織作成
+            // 既存組織チェック（エラーにしない）
+            const existingOrg = await window.WhaleStorage.getOrganization(formData.organizationId);
+            
+            if (existingOrg) {
+                console.warn('⚠️ Organization already exists');
+                // 既存ユーザーチェック
+                const existingUser = await window.WhaleStorage.getUserByCredentials(
+                    formData.organizationId,
+                    formData.adminUserId
+                );
+                
+                if (existingUser) {
+                    throw new Error('この施設機関IDとユーザーIDの組み合わせは既に登録されています');
+                }
+                
+                // 組織は存在するが、ユーザーは新規の場合は続行
+                console.log('ℹ️ Organization exists but user is new, continuing...');
+            }
+
+            // 組織作成（既存の場合は既存データを返す）
             const organization = await window.WhaleStorage.createOrganization({
                 organizationId: formData.organizationId,
                 name: formData.organizationName,
@@ -52,7 +73,7 @@ class WhaleAuthManager {
                 establishedDate: formData.organizationEstablishedDate
             });
 
-            console.log('✅ Organization created:', organization._id);
+            console.log('✅ Organization ready:', organization._id);
 
             // 管理者ユーザー作成
             const user = await window.WhaleStorage.createUser({
@@ -90,20 +111,36 @@ class WhaleAuthManager {
     }
 
     /**
-     * ログイン
+     * ログイン（完全修正版）
      */
     async login(credentials) {
         try {
-            console.log('🔐 Logging in...');
+            console.log('🔐 Starting login process...');
+            console.log('Organization ID:', credentials.organizationId);
+            console.log('User ID:', credentials.userId);
 
-            // 組織確認
-            const organization = await window.WhaleStorage.getOrganization(
-                credentials.organizationId
-            );
+            // バリデーション
+            if (!credentials.organizationId) {
+                throw new Error('施設機関IDを入力してください');
+            }
+
+            if (!credentials.userId) {
+                throw new Error('ユーザーIDを入力してください');
+            }
+
+            if (!credentials.password) {
+                throw new Error('パスワードを入力してください');
+            }
+
+            // 組織確認（存在しない場合はnullが返る）
+            const organization = await window.WhaleStorage.getOrganization(credentials.organizationId);
 
             if (!organization) {
-                throw new Error('施設機関IDが見つかりません');
+                console.warn('⚠️ Organization not found:', credentials.organizationId);
+                throw new Error('施設機関IDが見つかりません。新規登録が必要です。');
             }
+
+            console.log('✅ Organization found:', organization._id);
 
             // ユーザー取得
             const user = await window.WhaleStorage.getUserByCredentials(
@@ -112,14 +149,20 @@ class WhaleAuthManager {
             );
 
             if (!user) {
+                console.warn('⚠️ User not found:', credentials.userId);
                 throw new Error('ユーザーIDが見つかりません');
             }
+
+            console.log('✅ User found:', user._id);
 
             // パスワード検証
             const passwordHash = await this.hashPassword(credentials.password);
             if (passwordHash !== user.passwordHash) {
+                console.warn('⚠️ Password mismatch');
                 throw new Error('パスワードが正しくありません');
             }
+
+            console.log('✅ Password verified');
 
             // セッション開始
             this.startSession(user);
@@ -345,6 +388,6 @@ window.WhaleAuth = new WhaleAuthManager();
     }, { passive: true });
 });
 
-console.log('🐋 WHALE Auth Manager loaded');
+console.log('🐋 WHALE Auth Manager loaded (v2.3.0 - Fixed)');
 
 export default window.WhaleAuth;
