@@ -20,30 +20,30 @@
             <p class="text-sm text-gray-600 mt-2">データ分析と出力</p>
         </button>
 
-        <!-- 🔥 修正: 管理者メニューを常時表示可能に -->
+        <!-- 🔥 修正: 管理者メニューを常時表示 -->
         <button id="attendance-menu" class="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left"
-                onclick="loadPage('attendance.html')" style="display: none;">
+                onclick="loadPage('attendance.html')">
             <div class="text-4xl mb-3">📅</div>
             <h3 class="font-semibold text-gray-800 text-lg">出席管理</h3>
             <p class="text-sm text-gray-600 mt-2">利用者の出席記録</p>
         </button>
 
         <button id="users-menu" class="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left"
-                onclick="loadPage('users.html')" style="display: none;">
+                onclick="loadPage('users.html')">
             <div class="text-4xl mb-3">👥</div>
             <h3 class="font-semibold text-gray-800 text-lg">利用者管理</h3>
             <p class="text-sm text-gray-600 mt-2">利用者情報の管理</p>
         </button>
 
         <button id="assessments-menu" class="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left"
-                onclick="loadPage('assessments.html')" style="display: none;">
+                onclick="loadPage('assessments.html')">
             <div class="text-4xl mb-3">📋</div>
             <h3 class="font-semibold text-gray-800 text-lg">アセスメント</h3>
             <p class="text-sm text-gray-600 mt-2">評価とモニタリング</p>
         </button>
 
         <button id="service-plans-menu" class="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left"
-                onclick="loadPage('service-plans.html')" style="display: none;">
+                onclick="loadPage('service-plans.html')">
             <div class="text-4xl mb-3">📄</div>
             <h3 class="font-semibold text-gray-800 text-lg">サービス計画</h3>
             <p class="text-sm text-gray-600 mt-2">支援計画書の作成</p>
@@ -126,12 +126,12 @@
 
     let dashboardUpdateInterval = null;
 
-    // 🔥 修正: WhaleStorageの確実な初期化待機
+    // 🔥 修正: 初期化処理を完全に書き直し
     (async function initDashboard() {
         try {
             console.log('📊 Dashboard initializing...');
             
-            // 🔥 重要: WhaleStorageの初期化を待つ
+            // WhaleStorageの確実な初期化待機
             let retryCount = 0;
             while (!window.WhaleStorage && retryCount < 50) {
                 await new Promise(resolve => setTimeout(resolve, 100));
@@ -157,24 +157,8 @@
 
             console.log('✅ Current user:', currentUser.name, currentUser.role);
 
-            // 🔥 修正: 権限に応じてメニュー表示（常時表示）
-            if (currentUser.role === 'admin' || currentUser.role === 'staff') {
-                console.log('✅ Showing admin menus');
-                const adminMenus = [
-                    'attendance-menu',
-                    'users-menu',
-                    'assessments-menu',
-                    'service-plans-menu'
-                ];
-                
-                adminMenus.forEach(menuId => {
-                    const menu = document.getElementById(menuId);
-                    if (menu) {
-                        menu.style.display = 'block';
-                        console.log('✅ Showed:', menuId);
-                    }
-                });
-            }
+            // 🔥 修正: 権限に応じてメニュー表示を制御
+            showAdminMenus(currentUser.role);
 
             // 統計データ取得
             await loadStatistics(currentUser);
@@ -200,7 +184,6 @@
         } catch (error) {
             console.error('❌ Dashboard initialization error:', error);
             
-            // 🔥 修正: showToastが存在しない場合の対策
             if (typeof window.showToast === 'function') {
                 window.showToast('ダッシュボードの初期化に失敗しました: ' + error.message, 'error');
             } else {
@@ -208,6 +191,40 @@
             }
         }
     })();
+
+    // 🔥 新規追加: 管理者メニュー表示制御
+    function showAdminMenus(userRole) {
+        const adminMenuIds = [
+            'attendance-menu',
+            'users-menu',
+            'assessments-menu',
+            'service-plans-menu'
+        ];
+
+        if (userRole === 'admin' || userRole === 'staff') {
+            console.log('✅ Showing admin menus for role:', userRole);
+            adminMenuIds.forEach(menuId => {
+                const menu = document.getElementById(menuId);
+                if (menu) {
+                    menu.style.display = 'block';
+                    menu.style.visibility = 'visible';
+                    console.log('✅ Showed:', menuId);
+                }
+            });
+            
+            // LocalStorageに保存（再表示用）
+            window.WhaleStorage.setLocal('showAdminMenus', true);
+        } else {
+            console.log('ℹ️ Hiding admin menus for role:', userRole);
+            adminMenuIds.forEach(menuId => {
+                const menu = document.getElementById(menuId);
+                if (menu) {
+                    menu.style.display = 'none';
+                }
+            });
+            window.WhaleStorage.setLocal('showAdminMenus', false);
+        }
+    }
 
     // ページ離脱時にクリーンアップ
     window.addEventListener('beforeunload', () => {
