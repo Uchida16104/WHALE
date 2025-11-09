@@ -143,6 +143,22 @@
             <!-- 動的に生成 -->
         </div>
         <div class="mt-6 flex gap-4">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">データエクスポート</h3>
+            <div class="flex gap-4">
+                <button onclick="exportCSV()" 
+                        class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition"
+                        id="btn-csv">
+                    📋 CSV出力
+                </button>
+                <button onclick="exportJSON()" 
+                        class="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-4 rounded-lg transition"
+                        id="btn-json">
+                    💾 JSONバックアップ
+                </button>
+            </div>
+            <p class="text-sm text-gray-600 mt-3">
+                CSV形式でエクスポートします。Excelで開くことができます。
+            </p>
             <button onclick="printCurrentAssessment()"
                     class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition">
                 🖨️ 印刷
@@ -370,6 +386,48 @@
         } catch (error) {
             console.error('Print error:', error);
             window.showToast('印刷エラー: ' + error.message, 'error');
+        }
+    }
+        // 🔥 CSV専用エクスポート
+    async function exportCSV() {
+        try {
+            if (currentRecords.length === 0) {
+                window.showToast('エクスポートするデータがありません', 'warning');
+                return;
+            }
+
+            document.getElementById('btn-csv').disabled = true;
+            document.getElementById('btn-csv').textContent = '処理中...';
+
+            // 🔥 storage.jsの専用メソッドを呼び出し
+            await window.WhaleStorage.exportDailyRecordsCSV(currentRecords, allUsers);
+            
+            window.showToast('CSVをダウンロードしました', 'success');
+
+        } catch (error) {
+            console.error('CSV export error:', error);
+            window.showToast('CSV出力エラー: ' + error.message, 'error');
+        } finally {
+            document.getElementById('btn-csv').disabled = false;
+            document.getElementById('btn-csv').textContent = '📋 CSV出力';
+        }
+    }
+
+    // JSONバックアップ (システム全体のバックアップ)
+    async function exportJSON() {
+        try {
+            document.getElementById('btn-json').disabled = true;
+            document.getElementById('btn-json').textContent = '処理中...';
+
+            await window.WhaleStorage.backup();
+            window.showToast('JSONバックアップを作成しました', 'success');
+
+        } catch (error) {
+            console.error('JSON export error:', error);
+            window.showToast('JSONバックアップエラー: ' + error.message, 'error');
+        } finally {
+            document.getElementById('btn-json').disabled = false;
+            document.getElementById('btn-json').textContent = '💾 JSONバックアップ';
         }
     }
 </script>
