@@ -20,7 +20,6 @@
             <p class="text-sm text-gray-600 mt-2">データ分析と出力</p>
         </button>
 
-        <!-- 🔥 修正: 管理者メニューを常時表示 -->
         <button id="attendance-menu" class="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left"
                 onclick="loadPage('attendance.html')">
             <div class="text-4xl mb-3">📅</div>
@@ -57,7 +56,7 @@
         </button>
     </div>
 
-    <!-- 統計情報 -->
+    <!-- 🔥 統計情報 (全利用者対応) -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div class="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-xl shadow-lg">
             <div class="flex items-center justify-between mb-2">
@@ -96,11 +95,11 @@
         </div>
     </div>
 
-    <!-- 最近の記録 -->
+    <!-- 🔥 最近の記録 (全利用者対応) -->
     <div class="bg-white rounded-xl shadow-lg p-6">
         <div class="flex items-center justify-between mb-6">
-            <h3 class="text-xl font-bold text-gray-800">最近の記録</h3>
-            <button onclick="loadPage('daily-record.html')" 
+            <h3 class="text-xl font-bold text-gray-800">最近の記録 (全利用者)</h3>
+            <button onclick="loadPage('reports.html')" 
                     class="text-blue-600 hover:text-blue-800 text-sm font-medium">
                 すべて見る →
             </button>
@@ -125,13 +124,14 @@
     }
 
     let dashboardUpdateInterval = null;
+    let currentUser = null;
+    let allUsers = [];
 
-    // 🔥 修正: 初期化処理を完全に書き直し
+    // 🔥 初期化処理
     (async function initDashboard() {
         try {
             console.log('📊 Dashboard initializing...');
             
-            // WhaleStorageの確実な初期化待機
             let retryCount = 0;
             while (!window.WhaleStorage && retryCount < 50) {
                 await new Promise(resolve => setTimeout(resolve, 100));
@@ -139,31 +139,34 @@
             }
             
             if (!window.WhaleStorage) {
-                throw new Error('WhaleStorage not available after 5 seconds');
+                throw new Error('WhaleStorage not available');
             }
 
-            // ストレージが初期化されていない場合は初期化
             if (!window.WhaleStorage.initialized) {
                 console.log('⏳ Waiting for storage initialization...');
                 await window.WhaleStorage.init();
             }
 
-            const currentUser = await window.WhaleStorage.getCurrentUser();
+            currentUser = await window.WhaleStorage.getCurrentUser();
             if (!currentUser) {
-                console.warn('⚠️ No current user, redirecting to login');
+                console.warn('⚠️ No current user');
                 window.location.href = 'login.html';
                 return;
             }
 
             console.log('✅ Current user:', currentUser.name, currentUser.role);
 
-            // 🔥 修正: 権限に応じてメニュー表示を制御
+            // 🔥 全利用者取得
+            allUsers = await window.WhaleStorage.getUsers();
+            console.log('✅ All users loaded:', allUsers.length);
+
+            // 権限に応じてメニュー表示
             showAdminMenus(currentUser.role);
 
-            // 統計データ取得
+            // 🔥 統計データ取得 (全利用者対応)
             await loadStatistics(currentUser);
 
-            // 最近の記録取得
+            // 🔥 最近の記録取得 (全利用者対応)
             await loadRecentRecords(currentUser);
 
             // データ変更監視
@@ -192,7 +195,6 @@
         }
     })();
 
-    // 🔥 新規追加: 管理者メニュー表示制御
     function showAdminMenus(userRole) {
         const adminMenuIds = [
             'attendance-menu',
@@ -207,13 +209,8 @@
                 const menu = document.getElementById(menuId);
                 if (menu) {
                     menu.style.display = 'block';
-                    menu.style.visibility = 'visible';
-                    console.log('✅ Showed:', menuId);
                 }
             });
-            
-            // LocalStorageに保存（再表示用）
-            window.WhaleStorage.setLocal('showAdminMenus', true);
         } else {
             console.log('ℹ️ Hiding admin menus for role:', userRole);
             adminMenuIds.forEach(menuId => {
@@ -222,40 +219,56 @@
                     menu.style.display = 'none';
                 }
             });
-            window.WhaleStorage.setLocal('showAdminMenus', false);
         }
     }
 
-    // ページ離脱時にクリーンアップ
     window.addEventListener('beforeunload', () => {
         if (dashboardUpdateInterval) {
             clearInterval(dashboardUpdateInterval);
         }
     });
 
+    // 🔥 統計情報取得 (全利用者対応)
     async function loadStatistics(user) {
         try {
-            // 今月の記録数
-            const thisMonth = new Date();
-            const firstDay = new Date(thisMonth.getFullYear(), thisMonth.getMonth(), 1);
-            const lastDay = new Date(thisMonth.getFullYear(), thisMonth.getMonth() + 1, 0);
-            
-            const monthRecords = await window.WhaleStorage.getDailyRecords(
-                user._id,
-                firstDay.toISOString().split('T')[0],
-                lastDay.toISOString().split('T')[0]
-            );
-
-            // 今週の記録数
             const today = new Date();
+            const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            
             const firstDayOfWeek = new Date(today);
             firstDayOfWeek.setDate(today.getDate() - today.getDay());
-            
-            const weekRecords = await window.WhaleStorage.getDailyRecords(
-                user._id,
-                firstDayOfWeek.toISOString().split('T')[0],
-                today.toISOString().split('T')[0]
-            );
+
+            let monthRecords, weekRecords;
+
+            // 🔥 管理者・職員は全利用者のデータを表示
+            if (user.role === 'admin' || user.role === 'staff') {
+                console.log('📊 Loading statistics for ALL users...');
+                
+                monthRecords = await window.WhaleStorage.getAllDailyRecords(
+                    thisMonth.toISOString().split('T')[0],
+                    lastDay.toISOString().split('T')[0]
+                );
+
+                weekRecords = await window.WhaleStorage.getAllDailyRecords(
+                    firstDayOfWeek.toISOString().split('T')[0],
+                    today.toISOString().split('T')[0]
+                );
+            } else {
+                // 利用者は自分のデータのみ
+                console.log('📊 Loading statistics for current user only...');
+                
+                monthRecords = await window.WhaleStorage.getDailyRecords(
+                    user._id,
+                    thisMonth.toISOString().split('T')[0],
+                    lastDay.toISOString().split('T')[0]
+                );
+
+                weekRecords = await window.WhaleStorage.getDailyRecords(
+                    user._id,
+                    firstDayOfWeek.toISOString().split('T')[0],
+                    today.toISOString().split('T')[0]
+                );
+            }
 
             // 平均気分スコア
             const moodScores = weekRecords
@@ -284,20 +297,35 @@
         }
     }
 
+    // 🔥 最近の記録取得 (全利用者対応)
     async function loadRecentRecords(user) {
         try {
             const container = document.getElementById('recent-records');
             
-            // 過去7日間の記録取得
             const today = new Date();
             const sevenDaysAgo = new Date(today);
             sevenDaysAgo.setDate(today.getDate() - 7);
 
-            const records = await window.WhaleStorage.getDailyRecords(
-                user._id,
-                sevenDaysAgo.toISOString().split('T')[0],
-                today.toISOString().split('T')[0]
-            );
+            let records;
+
+            // 🔥 管理者・職員は全利用者のデータを表示
+            if (user.role === 'admin' || user.role === 'staff') {
+                console.log('📊 Loading recent records for ALL users...');
+                
+                records = await window.WhaleStorage.getAllDailyRecords(
+                    sevenDaysAgo.toISOString().split('T')[0],
+                    today.toISOString().split('T')[0]
+                );
+            } else {
+                // 利用者は自分のデータのみ
+                console.log('📊 Loading recent records for current user only...');
+                
+                records = await window.WhaleStorage.getDailyRecords(
+                    user._id,
+                    sevenDaysAgo.toISOString().split('T')[0],
+                    today.toISOString().split('T')[0]
+                );
+            }
 
             if (records.length === 0) {
                 container.innerHTML = `
@@ -313,35 +341,45 @@
                 return;
             }
 
+            // 🔥 ユーザー名のマップを作成
+            const userMap = {};
+            allUsers.forEach(u => {
+                userMap[u._id] = u.name;
+            });
+
             // 記録を表示
-            container.innerHTML = records.slice(0, 5).map(record => `
-                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
-                    <div class="flex-1">
-                        <div class="flex items-center space-x-3">
-                            <span class="text-2xl">
-                                ${record.moodScore >= 8 ? '😊' : record.moodScore >= 5 ? '😐' : '😔'}
-                            </span>
-                            <div>
-                                <div class="font-medium text-gray-800">
-                                    ${new Date(record.recordDate).toLocaleDateString('ja-JP', {
-                                        year: 'numeric',
-                                        month: 'long',
-                                        day: 'numeric',
-                                        weekday: 'short'
-                                    })}
-                                </div>
-                                <div class="text-sm text-gray-600">
-                                    体温: ${record.temperature || '-'} ℃ | 
-                                    気分: ${record.moodScore || '-'} / 10
+            container.innerHTML = records.slice(0, 10).map(record => {
+                const userName = userMap[record.userId] || '不明';
+                
+                return `
+                    <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                        <div class="flex-1">
+                            <div class="flex items-center space-x-3">
+                                <span class="text-2xl">
+                                    ${record.moodScore >= 8 ? '😊' : record.moodScore >= 5 ? '😐' : '😔'}
+                                </span>
+                                <div>
+                                    <div class="font-medium text-gray-800">
+                                        ${userName} - ${new Date(record.recordDate).toLocaleDateString('ja-JP', {
+                                            year: 'numeric',
+                                            month: 'long',
+                                            day: 'numeric',
+                                            weekday: 'short'
+                                        })}
+                                    </div>
+                                    <div class="text-sm text-gray-600">
+                                        体温: ${record.temperature || '-'} ℃ | 
+                                        気分: ${record.moodScore || '-'} / 10
+                                    </div>
                                 </div>
                             </div>
                         </div>
+                        <button onclick="viewRecordDetail('${record._id}')" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                            詳細 →
+                        </button>
                     </div>
-                    <button onclick="viewRecordDetail('${record._id}')" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                        詳細 →
-                    </button>
-                </div>
-            `).join('');
+                `;
+            }).join('');
 
         } catch (error) {
             console.error('❌ Recent records loading error:', error);
@@ -358,7 +396,9 @@
                 return;
             }
 
-            // モーダルで詳細表示
+            const user = allUsers.find(u => u._id === record.userId);
+            const userName = user ? user.name : '不明';
+
             const modal = document.createElement('div');
             modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4';
             modal.innerHTML = `
@@ -370,6 +410,10 @@
                         </button>
                     </div>
                     <div class="space-y-3">
+                        <div>
+                            <label class="text-sm text-gray-600">利用者</label>
+                            <div class="font-medium">${userName}</div>
+                        </div>
                         <div>
                             <label class="text-sm text-gray-600">日付</label>
                             <div class="font-medium">${record.recordDate ? new Date(record.recordDate).toLocaleDateString('ja-JP') : '-'}</div>
