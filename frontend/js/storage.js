@@ -1,34 +1,50 @@
 /**
  * WHALE Storage Manager - 完全修正版
- * @version 2.5.0 - エクスポート機能完全実装
+ * @version 2.6.0 - CSV専用 & 全利用者データ対応 & モバイル対応
  */
 
 class WhaleStorageManager {
     constructor() {
-        this.version = '2.5.0';
+        this.version = '2.6.0';
         this.prefix = 'whale_';
         this.db = null;
         this.syncHandler = null;
         this.initialized = false;
+        this.initializationPromise = null;
         this.syncEnabled = true;
         this.changeListeners = new Map();
     }
 
     async init() {
-        if (this.initialized) return;
+        // 既に初期化中の場合は同じPromiseを返す
+        if (this.initializationPromise) {
+            return this.initializationPromise;
+        }
 
+        if (this.initialized) {
+            return Promise.resolve();
+        }
+
+        this.initializationPromise = this._performInit();
+        return this.initializationPromise;
+    }
+
+    async _performInit() {
         try {
             console.log('🔄 Initializing PouchDB...');
             
+            // PouchDBの存在確認
             if (typeof PouchDB === 'undefined') {
                 throw new Error('PouchDB is not loaded');
             }
 
+            // データベース作成
             this.db = new PouchDB('whale_database', {
                 auto_compaction: true,
                 revs_limit: 10
             });
             
+            // Find Pluginの確認
             if (typeof this.db.find !== 'function') {
                 throw new Error('PouchDB Find Plugin is not loaded');
             }
@@ -43,6 +59,7 @@ class WhaleStorageManager {
             console.log('✅ Storage initialization complete');
         } catch (error) {
             console.error('❌ Storage initialization failed:', error);
+            this.initializationPromise = null;
             throw error;
         }
     }
@@ -241,7 +258,7 @@ class WhaleStorageManager {
         }
     }
 
-    // ==================== 高レベルAPI ====================
+    // ==================== 組織・ユーザー管理 ====================
 
     async createOrganization(data) {
         try {
@@ -383,6 +400,8 @@ class WhaleStorageManager {
         return await this.update(userId, updates);
     }
 
+    // ==================== 日々の記録管理 ====================
+
     async saveDailyRecord(data) {
         try {
             const currentUser = await this.getCurrentUser();
@@ -428,41 +447,38 @@ class WhaleStorageManager {
                         $lte: endDate
                     }
                 },
-                use_index: ['type', 'userId', 'recordDate'],
-                sort: [
-                    { type: 'asc' },
-                    { userId: 'asc' },
-                    { recordDate: 'desc' }
-                ]
+                sort: [{ recordDate: 'desc' }]
             });
             
             console.log('✅ Found', result.docs.length, 'records');
             return result.docs;
         } catch (error) {
             console.error('❌ Get daily records error:', error);
+            return [];
+        }
+    }
+
+    // 🔥 新規追加: 全利用者の記録を取得
+    async getAllDailyRecords(startDate, endDate) {
+        try {
+            console.log('📊 Getting ALL daily records:', { startDate, endDate });
             
-            console.warn('⚠️ Falling back to non-indexed query');
-            try {
-                const result = await this.db.find({
-                    selector: {
-                        type: 'daily_record',
-                        userId: userId,
-                        recordDate: {
-                            $gte: startDate,
-                            $lte: endDate
-                        }
+            const result = await this.db.find({
+                selector: {
+                    type: 'daily_record',
+                    recordDate: {
+                        $gte: startDate,
+                        $lte: endDate
                     }
-                });
-                
-                result.docs.sort((a, b) => {
-                    return new Date(b.recordDate) - new Date(a.recordDate);
-                });
-                
-                return result.docs;
-            } catch (fallbackError) {
-                console.error('❌ Fallback query failed:', fallbackError);
-                return [];
-            }
+                },
+                sort: [{ recordDate: 'desc' }]
+            });
+            
+            console.log('✅ Found', result.docs.length, 'total records');
+            return result.docs;
+        } catch (error) {
+            console.error('❌ Get all daily records error:', error);
+            return [];
         }
     }
 
@@ -471,6 +487,8 @@ class WhaleStorageManager {
         const records = await this.getDailyRecords(userId, today, today);
         return records[0] || null;
     }
+
+    // ==================== 出席管理 ====================
 
     async getAttendance(date) {
         try {
@@ -513,6 +531,8 @@ class WhaleStorageManager {
         }
     }
 
+    // ==================== アセスメント管理 ====================
+
     async getAssessments() {
         try {
             const result = await this.db.find({
@@ -533,6 +553,8 @@ class WhaleStorageManager {
             createdBy: currentUser._id
         });
     }
+
+    // ==================== サービス計画管理 ====================
 
     async getServicePlans() {
         try {
@@ -555,233 +577,38 @@ class WhaleStorageManager {
         });
     }
 
-    // ==================== 🔥 新規追加: エクスポート機能 ====================
+    // ==================== 🔥 CSV専用エクスポート ====================
 
     /**
-     * PDF印刷（ブラウザ印刷ダイアログを使用）
+     * 日々の記録をCSVエクスポート
      */
-    async printAssessment(assessmentId) {
+    async exportDailyRecordsCSV(records, users = null) {
         try {
-            const assessment = await this.get(assessmentId);
-            if (!assessment) {
-                throw new Error('アセスメントが見つかりません');
-            }
-
-            const user = await this.get(assessment.userId);
+            console.log('📋 Exporting daily records to CSV...');
             
-            // 印刷用HTMLを生成
-            const printWindow = window.open('', '_blank');
-            printWindow.document.write(`
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>アセスメント - ${user?.name || '不明'}</title>
-                    <style>
-                        body { font-family: 'Noto Sans JP', sans-serif; padding: 40px; }
-                        h1 { border-bottom: 3px solid #2563eb; padding-bottom: 10px; }
-                        .section { margin: 20px 0; }
-                        .label { font-weight: bold; color: #4b5563; margin-top: 15px; }
-                        .value { margin-left: 20px; white-space: pre-wrap; }
-                        @media print {
-                            body { padding: 20px; }
-                        }
-                    </style>
-                </head>
-                <body>
-                    <h1>アセスメント</h1>
-                    <div class="section">
-                        <div class="label">利用者:</div>
-                        <div class="value">${user?.name || '不明'}</div>
-                    </div>
-                    <div class="section">
-                        <div class="label">アセスメント日:</div>
-                        <div class="value">${assessment.assessmentDate ? new Date(assessment.assessmentDate).toLocaleDateString('ja-JP') : '-'}</div>
-                    </div>
-                    <div class="section">
-                        <div class="label">生活状況:</div>
-                        <div class="value">${assessment.livingCondition || '-'}</div>
-                    </div>
-                    <div class="section">
-                        <div class="label">健康状態:</div>
-                        <div class="value">${assessment.healthCondition || '-'}</div>
-                    </div>
-                    <div class="section">
-                        <div class="label">ADL（日常生活動作）:</div>
-                        <div class="value">${assessment.adl || '-'}</div>
-                    </div>
-                    <div class="section">
-                        <div class="label">コミュニケーション能力:</div>
-                        <div class="value">${assessment.communication || '-'}</div>
-                    </div>
-                    <div class="section">
-                        <div class="label">社会参加状況:</div>
-                        <div class="value">${assessment.socialParticipation || '-'}</div>
-                    </div>
-                    <div class="section">
-                        <div class="label">ニーズと課題:</div>
-                        <div class="value">${assessment.needs || '-'}</div>
-                    </div>
-                    <div class="section">
-                        <div class="label">支援方針:</div>
-                        <div class="value">${assessment.supportPlan || '-'}</div>
-                    </div>
-                    <script>
-                        window.onload = function() {
-                            window.print();
-                        }
-                    </script>
-                </body>
-                </html>
-            `);
-            printWindow.document.close();
-        } catch (error) {
-            console.error('Print assessment error:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * サービス計画印刷
-     */
-    async printServicePlan(planId) {
-        try {
-            const plan = await this.get(planId);
-            if (!plan) {
-                throw new Error('サービス計画が見つかりません');
+            // ユーザー情報のマップを作成
+            const userMap = {};
+            if (users && Array.isArray(users)) {
+                users.forEach(u => {
+                    userMap[u._id] = u.name;
+                });
             }
-
-            const user = await this.get(plan.userId);
-            
-            const printWindow = window.open('', '_blank');
-            printWindow.document.write(`
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>サービス利用計画 - ${user?.name || '不明'}</title>
-                    <style>
-                        body { font-family: 'Noto Sans JP', sans-serif; padding: 40px; }
-                        h1 { border-bottom: 3px solid #2563eb; padding-bottom: 10px; }
-                        .section { margin: 20px 0; page-break-inside: avoid; }
-                        .label { font-weight: bold; color: #4b5563; margin-top: 15px; }
-                        .value { margin-left: 20px; white-space: pre-wrap; }
-                        @media print {
-                            body { padding: 20px; }
-                        }
-                    </style>
-                </head>
-                <body>
-                    <h1>サービス利用計画</h1>
-                    <div class="section">
-                        <div class="label">利用者:</div>
-                        <div class="value">${user?.name || '不明'}</div>
-                    </div>
-                    <div class="section">
-                        <div class="label">計画期間:</div>
-                        <div class="value">${plan.startDate ? new Date(plan.startDate).toLocaleDateString('ja-JP') : '-'} ～ ${plan.endDate ? new Date(plan.endDate).toLocaleDateString('ja-JP') : '-'}</div>
-                    </div>
-                    <div class="section">
-                        <div class="label">利用者の希望:</div>
-                        <div class="value">${plan.userWish || '-'}</div>
-                    </div>
-                    <div class="section">
-                        <div class="label">総合的な支援方針:</div>
-                        <div class="value">${plan.overallPolicy || '-'}</div>
-                    </div>
-                    <div class="section">
-                        <div class="label">長期目標:</div>
-                        <div class="value">${plan.longTermGoal || '-'}</div>
-                    </div>
-                    <div class="section">
-                        <div class="label">短期目標:</div>
-                        <div class="value">${plan.shortTermGoal || '-'}</div>
-                    </div>
-                    <div class="section">
-                        <div class="label">具体的なサービス内容:</div>
-                        <div class="value">${plan.serviceContent || '-'}</div>
-                    </div>
-                    <div class="section">
-                        <div class="label">週間計画:</div>
-                        <div class="value">${plan.weeklyPlan || '-'}</div>
-                    </div>
-                    <div class="section">
-                        <div class="label">緊急時の対応:</div>
-                        <div class="value">${plan.emergencyResponse || '-'}</div>
-                    </div>
-                    <script>
-                        window.onload = function() {
-                            window.print();
-                        }
-                    </script>
-                </body>
-                </html>
-            `);
-            printWindow.document.close();
-        } catch (error) {
-            console.error('Print service plan error:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * PDF エクスポート（バックエンドAPI経由）
-     */
-    async exportPDF(data) {
-        try {
-            console.log('📄 Exporting PDF...');
-            
-            // バックエンドAPIが利用可能か確認
-            if (!window.WhaleAPI) {
-                // フォールバック: ブラウザ印刷を使用
-                console.warn('⚠️ Backend API not available, using browser print');
-                return this.exportPDFViaPrint(data);
-            }
-
-            const blob = await window.WhaleAPI.exportPDF(
-                data.records,
-                data.analytics,
-                data.organization
-            );
-
-            // ダウンロード
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `whale_report_${new Date().toISOString().split('T')[0]}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-
-            console.log('✅ Excel exported successfully');
-        } catch (error) {
-            console.error('❌ Excel export error:', error);
-            // フォールバック: CSV
-            return this.exportCSV(data);
-        }
-    }
-
-    /**
-     * CSV エクスポート
-     */
-    async exportCSV(data) {
-        try {
-            console.log('📋 Exporting CSV...');
-            const records = data.records || [];
 
             // CSVヘッダー
             const headers = [
                 '日付', '利用者', '起床時間', '就寝時間', '通所時間', '退所時間',
                 '朝食', '昼食', '夕食', '体温', '血圧(高)', '血圧(低)', '脈拍',
-                'SpO2', '気分スコア', '運動', '入浴'
+                'SpO2', '気分スコア', '気分詳細', '運動', '入浴', '洗面', '歯磨き'
             ];
 
             // CSV生成
             let csv = headers.join(',') + '\n';
 
             records.forEach(record => {
+                const userName = userMap[record.userId] || record.userName || 'unknown';
                 const row = [
                     record.recordDate || '',
-                    `"${record.userName || ''}"`,
+                    `"${userName}"`,
                     record.wakeUpTime || '',
                     record.sleepTime || '',
                     record.arrivalTime || '',
@@ -795,8 +622,11 @@ class WhaleStorageManager {
                     record.pulse || '',
                     record.spo2 || '',
                     record.moodScore || '',
+                    `"${(record.moodDetail || '').replace(/"/g, '""')}"`,
                     record.exercise ? '有' : '無',
-                    record.bathing ? '有' : '無'
+                    record.bathing ? '有' : '無',
+                    record.faceWash ? '有' : '無',
+                    record.toothBrushing ? '有' : '無'
                 ];
                 csv += row.join(',') + '\n';
             });
@@ -806,24 +636,135 @@ class WhaleStorageManager {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `whale_report_${new Date().toISOString().split('T')[0]}.csv`;
+            a.download = `whale_daily_records_${new Date().toISOString().split('T')[0]}.csv`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
 
             console.log('✅ CSV exported successfully');
+            return true;
         } catch (error) {
             console.error('❌ CSV export error:', error);
             throw error;
         }
     }
 
-    // ==================== データ管理機能 ====================
+    /**
+     * アセスメントをCSVエクスポート
+     */
+    async exportAssessmentsCSV(assessments, users = null) {
+        try {
+            console.log('📋 Exporting assessments to CSV...');
+            
+            const userMap = {};
+            if (users && Array.isArray(users)) {
+                users.forEach(u => {
+                    userMap[u._id] = u.name;
+                });
+            }
+
+            const headers = [
+                '日付', '利用者', '生活状況', '健康状態', 'ADL',
+                'コミュニケーション', '社会参加', 'ニーズ', '支援方針', '作成日時'
+            ];
+
+            let csv = headers.join(',') + '\n';
+
+            assessments.forEach(assessment => {
+                const userName = userMap[assessment.userId] || 'unknown';
+                const row = [
+                    assessment.assessmentDate || '',
+                    `"${userName}"`,
+                    `"${(assessment.livingCondition || '').replace(/"/g, '""')}"`,
+                    `"${(assessment.healthCondition || '').replace(/"/g, '""')}"`,
+                    `"${(assessment.adl || '').replace(/"/g, '""')}"`,
+                    `"${(assessment.communication || '').replace(/"/g, '""')}"`,
+                    `"${(assessment.socialParticipation || '').replace(/"/g, '""')}"`,
+                    `"${(assessment.needs || '').replace(/"/g, '""')}"`,
+                    `"${(assessment.supportPlan || '').replace(/"/g, '""')}"`,
+                    assessment.createdAt || ''
+                ];
+                csv += row.join(',') + '\n';
+            });
+
+            const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `whale_assessments_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            console.log('✅ Assessments CSV exported');
+            return true;
+        } catch (error) {
+            console.error('❌ Assessments CSV export error:', error);
+            throw error;
+        }
+    }
 
     /**
-     * バックアップ
+     * サービス計画をCSVエクスポート
      */
+    async exportServicePlansCSV(plans, users = null) {
+        try {
+            console.log('📋 Exporting service plans to CSV...');
+            
+            const userMap = {};
+            if (users && Array.isArray(users)) {
+                users.forEach(u => {
+                    userMap[u._id] = u.name;
+                });
+            }
+
+            const headers = [
+                '利用者', '開始日', '終了日', '利用者の希望', '支援方針',
+                '長期目標', '短期目標', 'サービス内容', '週間計画', '緊急時対応', '作成日時'
+            ];
+
+            let csv = headers.join(',') + '\n';
+
+            plans.forEach(plan => {
+                const userName = userMap[plan.userId] || 'unknown';
+                const row = [
+                    `"${userName}"`,
+                    plan.startDate || '',
+                    plan.endDate || '',
+                    `"${(plan.userWish || '').replace(/"/g, '""')}"`,
+                    `"${(plan.overallPolicy || '').replace(/"/g, '""')}"`,
+                    `"${(plan.longTermGoal || '').replace(/"/g, '""')}"`,
+                    `"${(plan.shortTermGoal || '').replace(/"/g, '""')}"`,
+                    `"${(plan.serviceContent || '').replace(/"/g, '""')}"`,
+                    `"${(plan.weeklyPlan || '').replace(/"/g, '""')}"`,
+                    `"${(plan.emergencyResponse || '').replace(/"/g, '""')}"`,
+                    plan.createdAt || ''
+                ];
+                csv += row.join(',') + '\n';
+            });
+
+            const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `whale_service_plans_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            console.log('✅ Service plans CSV exported');
+            return true;
+        } catch (error) {
+            console.error('❌ Service plans CSV export error:', error);
+            throw error;
+        }
+    }
+
+    // ==================== データ管理 ====================
+
     async backup() {
         try {
             console.log('💾 Creating backup...');
@@ -858,9 +799,6 @@ class WhaleStorageManager {
         }
     }
 
-    /**
-     * データインポート
-     */
     async import(file) {
         try {
             console.log('📥 Importing data...');
@@ -892,9 +830,6 @@ class WhaleStorageManager {
         }
     }
 
-    /**
-     * 古いデータ削除
-     */
     async cleanOldData(days = 90) {
         try {
             console.log(`🗑️ Cleaning data older than ${days} days...`);
@@ -924,24 +859,20 @@ class WhaleStorageManager {
         }
     }
 
-    /**
-     * 全データリセット
-     */
     async reset() {
         try {
             console.log('⚠️ Resetting all data...');
 
             await this.db.destroy();
             
-            // LocalStorage削除
             Object.keys(localStorage).forEach(key => {
                 if (key.startsWith(this.prefix)) {
                     localStorage.removeItem(key);
                 }
             });
 
-            // 再初期化
             this.initialized = false;
+            this.initializationPromise = null;
             await this.init();
 
             console.log('✅ Data reset complete');
@@ -951,9 +882,6 @@ class WhaleStorageManager {
         }
     }
 
-    /**
-     * ストレージ情報取得
-     */
     getStorageInfo() {
         let localStorageSize = 0;
         Object.keys(localStorage).forEach(key => {
@@ -974,124 +902,6 @@ class WhaleStorageManager {
 // グローバルインスタンス作成
 window.WhaleStorage = new WhaleStorageManager();
 
-console.log('🐋 WHALE Storage Manager loaded (v2.5.0 - Export Functions Added)');
+console.log('🐋 WHALE Storage Manager loaded (v2.6.0 - CSV Only & All Users Support)');
 
-export default window.WhaleStorage;keObjectURL(url);
-
-            console.log('✅ PDF exported successfully');
-        } catch (error) {
-            console.error('❌ PDF export error:', error);
-            // フォールバック
-            return this.exportPDFViaPrint(data);
-        }
-    }
-
-    /**
-     * PDFエクスポート（ブラウザ印刷フォールバック）
-     */
-    async exportPDFViaPrint(data) {
-        const printWindow = window.open('', '_blank');
-        const records = data.records || [];
-        const analytics = data.analytics || {};
-        const org = data.organization || {};
-
-        printWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>WHALE レポート</title>
-                <style>
-                    body { font-family: 'Noto Sans JP', sans-serif; padding: 40px; }
-                    h1 { border-bottom: 3px solid #2563eb; padding-bottom: 10px; }
-                    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0; }
-                    .stat-item { border: 1px solid #e5e7eb; padding: 15px; border-radius: 8px; }
-                    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                    th, td { border: 1px solid #e5e7eb; padding: 8px; text-align: left; }
-                    th { background: #f3f4f6; font-weight: bold; }
-                    @media print { body { padding: 20px; } }
-                </style>
-            </head>
-            <body>
-                <h1>WHALE システムレポート</h1>
-                <p><strong>施設:</strong> ${org.name || '-'}</p>
-                <p><strong>生成日時:</strong> ${new Date().toLocaleString('ja-JP')}</p>
-                
-                <h2>統計情報</h2>
-                <div class="stats">
-                    <div class="stat-item">
-                        <div>記録総数</div>
-                        <div style="font-size: 24px; font-weight: bold;">${analytics.totalRecords || 0}</div>
-                    </div>
-                    <div class="stat-item">
-                        <div>平均体温</div>
-                        <div style="font-size: 24px; font-weight: bold;">${analytics.avgTemperature ? analytics.avgTemperature.toFixed(1) : '-'} ℃</div>
-                    </div>
-                    <div class="stat-item">
-                        <div>平均気分スコア</div>
-                        <div style="font-size: 24px; font-weight: bold;">${analytics.avgMoodScore ? analytics.avgMoodScore.toFixed(1) : '-'} / 10</div>
-                    </div>
-                    <div class="stat-item">
-                        <div>運動実施率</div>
-                        <div style="font-size: 24px; font-weight: bold;">${analytics.exerciseRate ? analytics.exerciseRate.toFixed(0) : '-'} %</div>
-                    </div>
-                </div>
-
-                <h2>記録一覧</h2>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>日付</th>
-                            <th>利用者</th>
-                            <th>体温</th>
-                            <th>気分</th>
-                            <th>食事</th>
-                            <th>運動</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${records.slice(0, 50).map(r => `
-                            <tr>
-                                <td>${r.recordDate || '-'}</td>
-                                <td>${r.userName || '-'}</td>
-                                <td>${r.temperature || '-'} ℃</td>
-                                <td>${r.moodScore || '-'} / 10</td>
-                                <td>${[r.breakfast, r.lunch, r.dinner].filter(Boolean).length}/3</td>
-                                <td>${r.exercise ? '✓' : '×'}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-                <script>
-                    window.onload = function() {
-                        window.print();
-                    }
-                </script>
-            </body>
-            </html>
-        `);
-        printWindow.document.close();
-    }
-
-    /**
-     * Excel エクスポート
-     */
-    async exportExcel(data) {
-        try {
-            console.log('📊 Exporting Excel...');
-            
-            if (!window.WhaleAPI) {
-                // フォールバック: CSV形式でダウンロード
-                console.warn('⚠️ Backend API not available, using CSV fallback');
-                return this.exportCSV(data);
-            }
-
-            const blob = await window.WhaleAPI.exportExcel(data.records);
-
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `whale_report_${new Date().toISOString().split('T')[0]}.xlsx`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revo
+export default window.WhaleStorage;
