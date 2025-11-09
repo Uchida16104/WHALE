@@ -60,31 +60,24 @@
             </div>
         </div>
 
-        <!-- エクスポートボタン -->
+        <!-- 🔥 CSVエクスポートのみ -->
         <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
             <h3 class="text-lg font-semibold text-gray-800 mb-4">データエクスポート</h3>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <button onclick="exportPDF()" 
-                        class="bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 rounded-lg transition disabled:opacity-50"
-                        id="btn-pdf">
-                    📄 PDF出力
-                </button>
-                <button onclick="exportExcel()" 
-                        class="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition disabled:opacity-50"
-                        id="btn-excel">
-                    📊 Excel出力
-                </button>
+            <div class="flex gap-4">
                 <button onclick="exportCSV()" 
-                        class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition"
+                        class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition"
                         id="btn-csv">
                     📋 CSV出力
                 </button>
                 <button onclick="exportJSON()" 
-                        class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-4 rounded-lg transition"
+                        class="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-4 rounded-lg transition"
                         id="btn-json">
-                    💾 JSON出力
+                    💾 JSONバックアップ
                 </button>
             </div>
+            <p class="text-sm text-gray-600 mt-3">
+                CSV形式でエクスポートします。Excelで開くことができます。
+            </p>
         </div>
 
         <!-- データテーブル -->
@@ -95,6 +88,7 @@
                     <thead class="bg-gray-50">
                         <tr>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">日付</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">利用者</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">体温</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">血圧</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">気分</th>
@@ -104,7 +98,7 @@
                     </thead>
                     <tbody id="records-tbody" class="divide-y divide-gray-200">
                         <tr>
-                            <td colspan="6" class="px-4 py-8 text-center text-gray-500">
+                            <td colspan="7" class="px-4 py-8 text-center text-gray-500">
                                 期間を選択してデータを取得してください
                             </td>
                         </tr>
@@ -122,6 +116,7 @@
 
     let currentRecords = [];
     let currentUser = null;
+    let allUsers = [];
     let moodChart = null;
     let tempChart = null;
 
@@ -133,6 +128,10 @@
                 window.location.href = 'login.html';
                 return;
             }
+
+            // 🔥 全利用者取得
+            allUsers = await window.WhaleStorage.getUsers();
+            console.log('✅ All users loaded:', allUsers.length);
 
             // デフォルト期間設定（過去30日）
             const endDate = new Date();
@@ -171,9 +170,17 @@
                 return;
             }
 
-            // データ取得
-            const result = await window.WhaleStorage.getDailyRecords(currentUser._id, startDate, endDate);
-            currentRecords = result;
+            // 🔥 管理者・職員は全利用者のデータを表示
+            if (currentUser.role === 'admin' || currentUser.role === 'staff') {
+                console.log('📊 Loading report data for ALL users...');
+                currentRecords = await window.WhaleStorage.getAllDailyRecords(startDate, endDate);
+            } else {
+                // 利用者は自分のデータのみ
+                console.log('📊 Loading report data for current user only...');
+                currentRecords = await window.WhaleStorage.getDailyRecords(currentUser._id, startDate, endDate);
+            }
+
+            console.log('✅ Loaded', currentRecords.length, 'records');
 
             // 統計計算
             updateStatistics(currentRecords);
@@ -282,178 +289,74 @@
         const tbody = document.getElementById('records-tbody');
         
         if (records.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">データがありません</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">データがありません</td></tr>';
             return;
         }
 
-        tbody.innerHTML = records.slice(0, 50).map(record => `
-            <tr class="hover:bg-gray-50">
-                <td class="px-4 py-3 text-sm">${new Date(record.recordDate).toLocaleDateString('ja-JP')}</td>
-                <td class="px-4 py-3 text-sm">${record.temperature ? record.temperature + '℃' : '-'}</td>
-                <td class="px-4 py-3 text-sm">${record.bloodPressureHigh && record.bloodPressureLow ? record.bloodPressureHigh + '/' + record.bloodPressureLow : '-'}</td>
-                <td class="px-4 py-3 text-sm">${record.moodScore ? record.moodScore + '/10' : '-'}</td>
-                <td class="px-4 py-3 text-sm">${[record.breakfast, record.lunch, record.dinner].filter(Boolean).length}/3</td>
-                <td class="px-4 py-3 text-sm">${record.exercise ? '✅' : '❌'}</td>
-            </tr>
-        `).join('');
+        // 🔥 ユーザー名のマップ作成
+        const userMap = {};
+        allUsers.forEach(u => {
+            userMap[u._id] = u.name;
+        });
+
+        tbody.innerHTML = records.slice(0, 50).map(record => {
+            const userName = userMap[record.userId] || '不明';
+            
+            return `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 text-sm">${new Date(record.recordDate).toLocaleDateString('ja-JP')}</td>
+                    <td class="px-4 py-3 text-sm font-medium">${userName}</td>
+                    <td class="px-4 py-3 text-sm">${record.temperature ? record.temperature + '℃' : '-'}</td>
+                    <td class="px-4 py-3 text-sm">${record.bloodPressureHigh && record.bloodPressureLow ? record.bloodPressureHigh + '/' + record.bloodPressureLow : '-'}</td>
+                    <td class="px-4 py-3 text-sm">${record.moodScore ? record.moodScore + '/10' : '-'}</td>
+                    <td class="px-4 py-3 text-sm">${[record.breakfast, record.lunch, record.dinner].filter(Boolean).length}/3</td>
+                    <td class="px-4 py-3 text-sm">${record.exercise ? '✅' : '❌'}</td>
+                </tr>
+            `;
+        }).join('');
     }
 
-    async function exportPDF() {
+    // 🔥 CSV専用エクスポート
+    async function exportCSV() {
         try {
             if (currentRecords.length === 0) {
                 window.showToast('エクスポートするデータがありません', 'warning');
                 return;
             }
 
-            document.getElementById('btn-pdf').disabled = true;
-            document.getElementById('btn-pdf').textContent = '処理中...';
+            document.getElementById('btn-csv').disabled = true;
+            document.getElementById('btn-csv').textContent = '処理中...';
 
-            const analytics = calculateAnalytics();
-            const organization = await window.WhaleStorage.getOrganization(currentUser.organizationId);
-
-            const data = {
-                records: currentRecords.map(r => ({ ...r, userName: currentUser.name })),
-                analytics: analytics,
-                organization: organization || { name: currentUser.organizationId }
-            };
-
-            await window.WhaleStorage.exportPDF(data);
-            window.showToast('PDFをダウンロードしました', 'success');
-
-        } catch (error) {
-            console.error('PDF export error:', error);
-            window.showToast('PDF出力エラー: ' + error.message, 'error');
-        } finally {
-            document.getElementById('btn-pdf').disabled = false;
-            document.getElementById('btn-pdf').textContent = '📄 PDF出力';
-        }
-    }
-
-    async function exportExcel() {
-        try {
-            if (currentRecords.length === 0) {
-                window.showToast('エクスポートするデータがありません', 'warning');
-                return;
-            }
-
-            document.getElementById('btn-excel').disabled = true;
-            document.getElementById('btn-excel').textContent = '処理中...';
-
-            const data = {
-                records: currentRecords.map(r => ({ ...r, userName: currentUser.name }))
-            };
-
-            await window.WhaleStorage.exportExcel(data);
-            window.showToast('Excelをダウンロードしました', 'success');
-
-        } catch (error) {
-            console.error('Excel export error:', error);
-            window.showToast('Excel出力エラー: ' + error.message, 'error');
-        } finally {
-            document.getElementById('btn-excel').disabled = false;
-            document.getElementById('btn-excel').textContent = '📊 Excel出力';
-        }
-    }
-
-    function exportCSV() {
-        try {
-            if (currentRecords.length === 0) {
-                window.showToast('エクスポートするデータがありません', 'warning');
-                return;
-            }
-
-            // CSVヘッダー
-            const headers = ['日付', '体温', '血圧(高)', '血圧(低)', '脈拍', 'SpO2', '気分スコア', '朝食', '昼食', '夕食', '運動', '入浴'];
-            let csv = headers.join(',') + '\n';
-
-            currentRecords.forEach(record => {
-                const row = [
-                    record.recordDate || '',
-                    record.temperature || '',
-                    record.bloodPressureHigh || '',
-                    record.bloodPressureLow || '',
-                    record.pulse || '',
-                    record.spo2 || '',
-                    record.moodScore || '',
-                    record.breakfast ? '有' : '無',
-                    record.lunch ? '有' : '無',
-                    record.dinner ? '有' : '無',
-                    record.exercise ? '有' : '無',
-                    record.bathing ? '有' : '無'
-                ];
-                csv += row.join(',') + '\n';
-            });
-
-            const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `whale_report_${new Date().toISOString().split('T')[0]}.csv`;
-            a.click();
-            URL.revokeObjectURL(url);
+            // 🔥 storage.jsの専用メソッドを呼び出し
+            await window.WhaleStorage.exportDailyRecordsCSV(currentRecords, allUsers);
             
             window.showToast('CSVをダウンロードしました', 'success');
+
         } catch (error) {
             console.error('CSV export error:', error);
             window.showToast('CSV出力エラー: ' + error.message, 'error');
+        } finally {
+            document.getElementById('btn-csv').disabled = false;
+            document.getElementById('btn-csv').textContent = '📋 CSV出力';
         }
     }
 
-    function exportJSON() {
+    // JSONバックアップ (システム全体のバックアップ)
+    async function exportJSON() {
         try {
-            if (currentRecords.length === 0) {
-                window.showToast('エクスポートするデータがありません', 'warning');
-                return;
-            }
+            document.getElementById('btn-json').disabled = true;
+            document.getElementById('btn-json').textContent = '処理中...';
 
-            const data = {
-                exportDate: new Date().toISOString(),
-                version: '2.2.0',
-                user: {
-                    id: currentUser._id,
-                    name: currentUser.name,
-                    organizationId: currentUser.organizationId
-                },
-                records: currentRecords
-            };
+            await window.WhaleStorage.backup();
+            window.showToast('JSONバックアップを作成しました', 'success');
 
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `whale_backup_${new Date().toISOString().split('T')[0]}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-            
-            window.showToast('JSONをダウンロードしました', 'success');
         } catch (error) {
             console.error('JSON export error:', error);
-            window.showToast('JSON出力エラー: ' + error.message, 'error');
+            window.showToast('JSONバックアップエラー: ' + error.message, 'error');
+        } finally {
+            document.getElementById('btn-json').disabled = false;
+            document.getElementById('btn-json').textContent = '💾 JSONバックアップ';
         }
-    }
-
-    function calculateAnalytics() {
-        const temperatures = currentRecords.map(r => r.temperature).filter(Boolean);
-        const moodScores = currentRecords.map(r => r.moodScore).filter(Boolean);
-        const bloodPressureHigh = currentRecords.map(r => r.bloodPressureHigh).filter(Boolean);
-
-        return {
-            totalRecords: currentRecords.length,
-            avgTemperature: temperatures.length > 0 
-                ? temperatures.reduce((a, b) => a + b, 0) / temperatures.length 
-                : 0,
-            avgMoodScore: moodScores.length > 0
-                ? moodScores.reduce((a, b) => a + b, 0) / moodScores.length
-                : 0,
-            avgBloodPressureHigh: bloodPressureHigh.length > 0
-                ? bloodPressureHigh.reduce((a, b) => a + b, 0) / bloodPressureHigh.length
-                : 0,
-            breakfastRate: (currentRecords.filter(r => r.breakfast).length / currentRecords.length) * 100,
-            lunchRate: (currentRecords.filter(r => r.lunch).length / currentRecords.length) * 100,
-            dinnerRate: (currentRecords.filter(r => r.dinner).length / currentRecords.length) * 100,
-            exerciseRate: (currentRecords.filter(r => r.exercise).length / currentRecords.length) * 100,
-            bathingRate: (currentRecords.filter(r => r.bathing).length / currentRecords.length) * 100
-        };
     }
 </script>
 <script type="module" src="js/app.js"></script>
