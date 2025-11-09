@@ -25,8 +25,14 @@
                 セッションがタイムアウトしました。再度ログインしてください。
             </div>
             <div id="info-message" class="hidden bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded mb-4"></div>
+            <div id="loading-message" class="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded mb-4">
+                <div class="flex items-center">
+                    <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-700 mr-3"></div>
+                    システム初期化中...
+                </div>
+            </div>
 
-            <form id="login-form" class="space-y-6">
+            <form id="login-form" class="space-y-6 opacity-50 pointer-events-none">
                 <div>
                     <label for="organization-id" class="block text-sm font-medium text-gray-700 mb-2">
                         施設機関ID <span class="text-red-500">*</span>
@@ -86,42 +92,90 @@
         </div>
 
         <div class="text-center mt-6 text-sm text-gray-600">
-            <p>&copy; 2025 WHALE System v2.3.0</p>
+            <p>&copy; 2025 WHALE System v2.5.0</p>
             <p class="text-xs mt-1">Developed by Hirotoshi Uchida</p>
         </div>
     </div>
 
-    <script type="module" src="js/storage.js"></script>
-    <script type="module" src="js/auth.js"></script>
-
+    <!-- グローバル設定（最初に実行） -->
     <script>
-        // グローバル変数
         window.WHALE = {
             API_URL: 'https://whale-backend-84p5.onrender.com',
             GITHUB_PAGES_URL: 'https://uchida16104.github.io/WHALE',
-            VERSION: '2.3.0'
+            VERSION: '2.5.0'
         };
+        console.log('🐋 WHALE Global config loaded');
+    </script>
 
-        // 初期化
-        document.addEventListener('DOMContentLoaded', async () => {
-            console.log('🐋 Login page loaded (v2.3.0)');
+    <!-- モジュールを順番に読み込み -->
+    <script type="module">
+        console.log('🔄 Loading modules...');
+        
+        // ストレージモジュール読み込み
+        import('./js/storage.js').then(() => {
+            console.log('✅ Storage module loaded');
+            return import('./js/auth.js');
+        }).then(() => {
+            console.log('✅ Auth module loaded');
+            return initLoginPage();
+        }).catch(error => {
+            console.error('❌ Module loading failed:', error);
+            showError('モジュールの読み込みに失敗しました: ' + error.message);
+        });
+
+        async function initLoginPage() {
+            console.log('🐋 Login page initializing (v2.5.0)...');
+
+            const loadingMsg = document.getElementById('loading-message');
+            const errorDiv = document.getElementById('error-message');
+            const infoDiv = document.getElementById('info-message');
+            const form = document.getElementById('login-form');
 
             try {
-                // PouchDB Find Plugin確認
+                // PouchDB確認
                 if (typeof PouchDB === 'undefined') {
                     throw new Error('PouchDB is not loaded');
                 }
-                
+                console.log('✅ PouchDB loaded');
+
+                // PouchDB Find Plugin確認
                 const testDb = new PouchDB('test_login_db');
                 if (typeof testDb.find !== 'function') {
-                    throw new Error('PouchDB Find Plugin is required');
+                    await testDb.destroy();
+                    throw new Error('PouchDB Find Plugin is not loaded');
                 }
                 await testDb.destroy();
                 console.log('✅ PouchDB Find Plugin confirmed');
 
+                // WhaleStorage確認と初期化
+                let retryCount = 0;
+                while (!window.WhaleStorage && retryCount < 50) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    retryCount++;
+                }
+
+                if (!window.WhaleStorage) {
+                    throw new Error('WhaleStorage not available after 5 seconds');
+                }
+                console.log('✅ WhaleStorage available');
+
                 // ストレージ初期化
-                await window.WhaleStorage.init();
+                if (!window.WhaleStorage.initialized) {
+                    await window.WhaleStorage.init();
+                }
                 console.log('✅ Storage initialized');
+
+                // WhaleAuth確認
+                retryCount = 0;
+                while (!window.WhaleAuth && retryCount < 50) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    retryCount++;
+                }
+
+                if (!window.WhaleAuth) {
+                    throw new Error('WhaleAuth not available after 5 seconds');
+                }
+                console.log('✅ WhaleAuth available');
 
                 // タイムアウトメッセージ表示
                 const urlParams = new URLSearchParams(window.location.search);
@@ -133,108 +187,124 @@
                 const isAuthenticated = await window.WhaleAuth.checkAuth();
                 if (isAuthenticated) {
                     console.log('✅ Already authenticated, redirecting...');
-                    window.location.href = 'index.html';
+                    infoDiv.textContent = 'ログイン済みです。ダッシュボードに移動します...';
+                    infoDiv.classList.remove('hidden');
+                    setTimeout(() => {
+                        window.location.href = 'index.html';
+                    }, 1000);
                     return;
                 }
 
+                // フォーム有効化
+                loadingMsg.classList.add('hidden');
+                form.classList.remove('opacity-50', 'pointer-events-none');
+                console.log('✅ Form enabled');
+
                 // フォーム送信処理
-                const form = document.getElementById('login-form');
-                const button = document.getElementById('login-button');
-                const errorDiv = document.getElementById('error-message');
-                const infoDiv = document.getElementById('info-message');
-
-                form.addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    
-                    // エラーメッセージクリア
-                    errorDiv.classList.add('hidden');
-                    infoDiv.classList.add('hidden');
-                    
-                    // ボタン無効化
-                    button.disabled = true;
-                    button.textContent = 'ログイン中...';
-
-                    try {
-                        const formData = new FormData(form);
-                        const credentials = {
-                            organizationId: formData.get('organizationId').trim(),
-                            userId: formData.get('userId').trim(),
-                            password: formData.get('password')
-                        };
-
-                        // バリデーション
-                        if (!credentials.organizationId) {
-                            throw new Error('施設機関IDを入力してください');
-                        }
-
-                        if (!credentials.userId) {
-                            throw new Error('ユーザーIDを入力してください');
-                        }
-
-                        if (!credentials.password) {
-                            throw new Error('パスワードを入力してください');
-                        }
-
-                        console.log('🔐 Attempting login...');
-                        console.log('Organization ID:', credentials.organizationId);
-                        console.log('User ID:', credentials.userId);
-
-                        // ログイン実行
-                        const result = await window.WhaleAuth.login(credentials);
-
-                        if (result.success) {
-                            console.log('✅ Login successful');
-                            
-                            // 成功メッセージ表示
-                            infoDiv.textContent = 'ログイン成功！ダッシュボードに移動します...';
-                            infoDiv.classList.remove('hidden');
-                            
-                            // ダッシュボードへリダイレクト
-                            setTimeout(() => {
-                                window.location.href = 'index.html';
-                            }, 1000);
-                        } else {
-                            throw new Error('ログインに失敗しました');
-                        }
-                    } catch (error) {
-                        console.error('❌ Login error:', error);
-                        
-                        let errorMessage = error.message || '認証に失敗しました';
-                        
-                        // エラーメッセージをユーザーフレンドリーに
-                        if (errorMessage.includes('施設機関IDが見つかりません')) {
-                            errorMessage = '施設機関IDが見つかりません。新規登録が必要な場合は「新規登録はこちら」をクリックしてください。';
-                        }
-                        
-                        errorDiv.textContent = errorMessage;
-                        errorDiv.classList.remove('hidden');
-                        
-                        // ボタン有効化
-                        button.disabled = false;
-                        button.textContent = 'ログイン';
-                        
-                        // フォーカスを施設機関IDに戻す
-                        document.getElementById('organization-id').focus();
-                    }
-                });
-
-                // Enterキーでログイン
-                form.addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter' && !button.disabled) {
-                        e.preventDefault();
-                        form.dispatchEvent(new Event('submit'));
-                    }
-                });
+                setupLoginForm();
 
                 console.log('✅ Login page ready');
 
             } catch (error) {
                 console.error('❌ Login page initialization error:', error);
-                const errorDiv = document.getElementById('error-message');
-                errorDiv.textContent = 'システムエラー: ' + error.message;
-                errorDiv.classList.remove('hidden');
+                loadingMsg.classList.add('hidden');
+                showError('システムエラー: ' + error.message);
             }
-        });
+        }
+
+        function setupLoginForm() {
+            const form = document.getElementById('login-form');
+            const button = document.getElementById('login-button');
+            const errorDiv = document.getElementById('error-message');
+            const infoDiv = document.getElementById('info-message');
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                // エラーメッセージクリア
+                errorDiv.classList.add('hidden');
+                infoDiv.classList.add('hidden');
+                
+                // ボタン無効化
+                button.disabled = true;
+                button.textContent = 'ログイン中...';
+
+                try {
+                    const formData = new FormData(form);
+                    const credentials = {
+                        organizationId: formData.get('organizationId').trim(),
+                        userId: formData.get('userId').trim(),
+                        password: formData.get('password')
+                    };
+
+                    // バリデーション
+                    if (!credentials.organizationId) {
+                        throw new Error('施設機関IDを入力してください');
+                    }
+
+                    if (!credentials.userId) {
+                        throw new Error('ユーザーIDを入力してください');
+                    }
+
+                    if (!credentials.password) {
+                        throw new Error('パスワードを入力してください');
+                    }
+
+                    console.log('🔐 Attempting login...');
+
+                    // ログイン実行
+                    const result = await window.WhaleAuth.login(credentials);
+
+                    if (result.success) {
+                        console.log('✅ Login successful');
+                        
+                        // 成功メッセージ表示
+                        infoDiv.textContent = 'ログイン成功！ダッシュボードに移動します...';
+                        infoDiv.classList.remove('hidden');
+                        
+                        // ダッシュボードへリダイレクト
+                        setTimeout(() => {
+                            window.location.href = 'index.html';
+                        }, 1000);
+                    } else {
+                        throw new Error('ログインに失敗しました');
+                    }
+                } catch (error) {
+                    console.error('❌ Login error:', error);
+                    
+                    let errorMessage = error.message || '認証に失敗しました';
+                    
+                    // エラーメッセージをユーザーフレンドリーに
+                    if (errorMessage.includes('施設機関IDが見つかりません')) {
+                        errorMessage = '施設機関IDが見つかりません。新規登録が必要な場合は「新規登録はこちら」をクリックしてください。';
+                    }
+                    
+                    showError(errorMessage);
+                    
+                    // ボタン有効化
+                    button.disabled = false;
+                    button.textContent = 'ログイン';
+                    
+                    // フォーカスを施設機関IDに戻す
+                    document.getElementById('organization-id').focus();
+                }
+            });
+
+            // Enterキーでログイン
+            form.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !button.disabled) {
+                    e.preventDefault();
+                    form.dispatchEvent(new Event('submit'));
+                }
+            });
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+            window.scrollTo(0, 0);
+        }
     </script>
 </body>
 </html>
