@@ -478,6 +478,260 @@
             }
         }
     }
+    
+    function filterUsers() {
+        const searchName = document.getElementById('search-name').value.toLowerCase();
+        const filterRole = document.getElementById('filter-role').value;
+
+        const filtered = allUsers.filter(user => {
+            const nameMatch = !searchName || 
+                user.name.toLowerCase().includes(searchName) || 
+                (user.nameKana && user.nameKana.toLowerCase().includes(searchName));
+            const roleMatch = !filterRole || user.role === filterRole;
+            return nameMatch && roleMatch;
+        });
+
+        displayUsers(filtered);
+    }
+    
+    function showAddUserModal() {
+        document.getElementById('add-user-modal').classList.remove('hidden');
+    }
+
+    function filterAssessments() {
+        const filterUserId = document.getElementById('filter-user').value;
+
+        const filtered = filterUserId
+            ? allAssessments.filter(a => a.userId === filterUserId)
+            : allAssessments;
+
+        displayAssessments(filtered);
+    }
+
+    function showCreateAssessmentModal() {
+        document.getElementById('create-assessment-modal').classList.remove('hidden');
+        document.querySelector('input[name="assessmentDate"]').valueAsDate = new Date();
+    }
+
+        // 🔥 CSV専用エクスポート
+    async function exportCSV() {
+        try {
+            if (currentRecords.length === 0) {
+                window.showToast('エクスポートするデータがありません', 'warning');
+                return;
+            }
+
+            document.getElementById('btn-csv').disabled = true;
+            document.getElementById('btn-csv').textContent = '処理中...';
+
+            // 🔥 storage.jsの専用メソッドを呼び出し
+            await window.WhaleStorage.exportDailyRecordsCSV(currentRecords, allUsers);
+            
+            window.showToast('CSVをダウンロードしました', 'success');
+
+        } catch (error) {
+            console.error('CSV export error:', error);
+            window.showToast('CSV出力エラー: ' + error.message, 'error');
+        } finally {
+            document.getElementById('btn-csv').disabled = false;
+            document.getElementById('btn-csv').textContent = '📋 CSV出力';
+        }
+    }
+
+    // JSONバックアップ (システム全体のバックアップ)
+    async function exportJSON() {
+        try {
+            document.getElementById('btn-json').disabled = true;
+            document.getElementById('btn-json').textContent = '処理中...';
+
+            await window.WhaleStorage.backup();
+            window.showToast('JSONバックアップを作成しました', 'success');
+
+        } catch (error) {
+            console.error('JSON export error:', error);
+            window.showToast('JSONバックアップエラー: ' + error.message, 'error');
+        } finally {
+            document.getElementById('btn-json').disabled = false;
+            document.getElementById('btn-json').textContent = '💾 JSONバックアップ';
+        }
+    }
+
+    function filterPlans() {
+        const filterUserId = document.getElementById('filter-user').value;
+
+        const filtered = filterUserId
+            ? allPlans.filter(p => p.userId === filterUserId)
+            : allPlans;
+
+        displayPlans(filtered);
+    }
+
+    function showCreatePlanModal() {
+        document.getElementById('create-plan-modal').classList.remove('hidden');
+        const today = new Date();
+        document.querySelector('input[name="startDate"]').valueAsDate = today;
+        const endDate = new Date(today);
+        endDate.setMonth(endDate.getMonth() + 6);
+        document.querySelector('input[name="endDate"]').valueAsDate = endDate;
+    }
+
+    async function loadReportData() {
+        try {
+            if (!currentUser) return;
+
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
+
+            if (!startDate || !endDate) {
+                window.showToast('期間を選択してください', 'warning');
+                return;
+            }
+
+            // 🔥 管理者・職員は全利用者のデータを表示
+            if (currentUser.role === 'admin' || currentUser.role === 'staff') {
+                console.log('📊 Loading report data for ALL users...');
+                currentRecords = await window.WhaleStorage.getAllDailyRecords(startDate, endDate);
+            } else {
+                // 利用者は自分のデータのみ
+                console.log('📊 Loading report data for current user only...');
+                currentRecords = await window.WhaleStorage.getDailyRecords(currentUser._id, startDate, endDate);
+            }
+
+            console.log('✅ Loaded', currentRecords.length, 'records');
+
+            // 統計計算
+            updateStatistics(currentRecords);
+
+            // グラフ更新
+            updateCharts(currentRecords);
+
+            // テーブル更新
+            updateTable(currentRecords);
+
+            window.showToast('データを読み込みました', 'success');
+
+        } catch (error) {
+            console.error('Load report data error:', error);
+            window.showToast('データ読み込みエラー: ' + error.message, 'error');
+        }
+    }
+
+    function updateStatistics(records) {
+        const total = records.length;
+        const temperatures = records.map(r => r.temperature).filter(Boolean);
+        const moodScores = records.map(r => r.moodScore).filter(Boolean);
+        const exerciseCount = records.filter(r => r.exercise).length;
+
+        document.getElementById('stat-total').textContent = total;
+        document.getElementById('stat-temp').textContent = temperatures.length > 0
+            ? (temperatures.reduce((a, b) => a + b, 0) / temperatures.length).toFixed(1) + '℃'
+            : '-';
+        document.getElementById('stat-mood').textContent = moodScores.length > 0
+            ? (moodScores.reduce((a, b) => a + b, 0) / moodScores.length).toFixed(1) + '/10'
+            : '-';
+        document.getElementById('stat-exercise').textContent = total > 0
+            ? ((exerciseCount / total) * 100).toFixed(0) + '%'
+            : '-';
+    }
+
+    function updateCharts(records) {
+        const sortedRecords = [...records].sort((a, b) => 
+            new Date(a.recordDate) - new Date(b.recordDate)
+        );
+
+        const labels = sortedRecords.map(r => 
+            new Date(r.recordDate).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })
+        );
+        const moodData = sortedRecords.map(r => r.moodScore || null);
+        const tempData = sortedRecords.map(r => r.temperature || null);
+
+        // 気分グラフ
+        const moodCtx = document.getElementById('mood-chart');
+        if (moodChart) moodChart.destroy();
+        moodChart = new Chart(moodCtx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '気分スコア',
+                    data: moodData,
+                    borderColor: 'rgb(147, 51, 234)',
+                    backgroundColor: 'rgba(147, 51, 234, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: { display: true }
+                },
+                scales: {
+                    y: { min: 0, max: 10, title: { display: true, text: 'スコア' } }
+                }
+            }
+        });
+
+        // 体温グラフ
+        const tempCtx = document.getElementById('temp-chart');
+        if (tempChart) tempChart.destroy();
+        tempChart = new Chart(tempCtx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '体温',
+                    data: tempData,
+                    borderColor: 'rgb(249, 115, 22)',
+                    backgroundColor: 'rgba(249, 115, 22, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: { display: true }
+                },
+                scales: {
+                    y: { min: 35, max: 39, title: { display: true, text: '℃' } }
+                }
+            }
+        });
+    }
+
+    function updateTable(records) {
+        const tbody = document.getElementById('records-tbody');
+        
+        if (records.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">データがありません</td></tr>';
+            return;
+        }
+
+        // 🔥 ユーザー名のマップ作成
+        const userMap = {};
+        allUsers.forEach(u => {
+            userMap[u._id] = u.name;
+        });
+
+        tbody.innerHTML = records.slice(0, 50).map(record => {
+            const userName = userMap[record.userId] || '不明';
+            
+            return `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 text-sm">${new Date(record.recordDate).toLocaleDateString('ja-JP')}</td>
+                    <td class="px-4 py-3 text-sm font-medium">${userName}</td>
+                    <td class="px-4 py-3 text-sm">${record.temperature ? record.temperature + '℃' : '-'}</td>
+                    <td class="px-4 py-3 text-sm">${record.bloodPressureHigh && record.bloodPressureLow ? record.bloodPressureHigh + '/' + record.bloodPressureLow : '-'}</td>
+                    <td class="px-4 py-3 text-sm">${record.moodScore ? record.moodScore + '/10' : '-'}</td>
+                    <td class="px-4 py-3 text-sm">${[record.breakfast, record.lunch, record.dinner].filter(Boolean).length}/3</td>
+                    <td class="px-4 py-3 text-sm">${record.exercise ? '✅' : '❌'}</td>
+                </tr>
+            `;
+        }).join('');
+    }
 </script>
 <script type="module" src="js/app.js"></script>
 <script type="module" src="js/auth.js"></script>
