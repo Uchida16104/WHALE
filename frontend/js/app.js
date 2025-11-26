@@ -172,6 +172,10 @@ class WhaleApp {
         document.body.addEventListener('htmx:afterSwap', (e) => {
             console.log('Content swapped:', e.detail.pathInfo.path);
             this.initializeDynamicContent();
+            // ensure dashboard init after dynamic content initialized
+            if (document.getElementById('dashboard-root') && typeof window.initDashboard === 'function') {
+                window.initDashboard();
+            }
         });
     }
 
