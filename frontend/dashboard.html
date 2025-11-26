@@ -1,4 +1,5 @@
-<div class="container mx-auto px-4 py-8">
+<!-- frontend/dashboard.html -->
+<div id="dashboard-root" class="container mx-auto px-4 py-8">
     <div class="mb-8">
         <h2 class="text-3xl font-bold text-gray-800 mb-2">ダッシュボード</h2>
         <p class="text-gray-600">今日の概要</p>
@@ -6,50 +7,45 @@
 
     <!-- メインメニューカード -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <button onclick="loadPage('daily-record.html')"
-                class="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left">
+        <button data-href="daily-record.html"
+                class="dashboard-nav bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left">
             <div class="text-4xl mb-3">📝</div>
             <h3 class="font-semibold text-gray-800 text-lg">日々の記録</h3>
             <p class="text-sm text-gray-600 mt-2">生活情報を記録</p>
         </button>
 
-        <button onclick="loadPage('reports.html')"
-                class="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left">
+        <button data-href="reports.html"
+                class="dashboard-nav bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left">
             <div class="text-4xl mb-3">📊</div>
             <h3 class="font-semibold text-gray-800 text-lg">レポート</h3>
             <p class="text-sm text-gray-600 mt-2">データ分析と出力</p>
         </button>
 
-        <button id="attendance-menu" class="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left"
-                onclick="loadPage('attendance.html')">
+        <button id="attendance-menu" data-href="attendance.html" class="dashboard-nav bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left">
             <div class="text-4xl mb-3">📅</div>
             <h3 class="font-semibold text-gray-800 text-lg">出席管理</h3>
             <p class="text-sm text-gray-600 mt-2">利用者の出席記録</p>
         </button>
 
-        <button id="users-menu" class="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left"
-                onclick="loadPage('users.html')">
+        <button id="users-menu" data-href="users.html" class="dashboard-nav bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left">
             <div class="text-4xl mb-3">👥</div>
             <h3 class="font-semibold text-gray-800 text-lg">利用者管理</h3>
             <p class="text-sm text-gray-600 mt-2">利用者情報の管理</p>
         </button>
 
-        <button id="assessments-menu" class="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left"
-                onclick="loadPage('assessments.html')">
+        <button id="assessments-menu" data-href="assessments.html" class="dashboard-nav bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left">
             <div class="text-4xl mb-3">📋</div>
             <h3 class="font-semibold text-gray-800 text-lg">アセスメント</h3>
             <p class="text-sm text-gray-600 mt-2">評価とモニタリング</p>
         </button>
 
-        <button id="service-plans-menu" class="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left"
-                onclick="loadPage('service-plans.html')">
+        <button id="service-plans-menu" data-href="service-plans.html" class="dashboard-nav bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left">
             <div class="text-4xl mb-3">📄</div>
             <h3 class="font-semibold text-gray-800 text-lg">サービス計画</h3>
             <p class="text-sm text-gray-600 mt-2">支援計画書の作成</p>
         </button>
 
-        <button onclick="loadPage('settings.html')"
-                class="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left">
+        <button data-href="settings.html" class="dashboard-nav bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left">
             <div class="text-4xl mb-3">⚙️</div>
             <h3 class="font-semibold text-gray-800 text-lg">設定</h3>
             <p class="text-sm text-gray-600 mt-2">システム設定</p>
@@ -99,8 +95,7 @@
     <div class="bg-white rounded-xl shadow-lg p-6">
         <div class="flex items-center justify-between mb-6">
             <h3 class="text-xl font-bold text-gray-800">最近の記録 (全利用者)</h3>
-            <button onclick="loadPage('reports.html')" 
-                    class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+            <button data-href="reports.html" class="text-blue-600 hover:text-blue-800 text-sm font-medium dashboard-nav">
                 すべて見る →
             </button>
         </div>
@@ -113,408 +108,3 @@
         </div>
     </div>
 </div>
-
-<script>
-(function() {
-    'use strict';
-
-    // グローバルスコープ汚染を防ぐためのIIFE
-    let dashboardState = {
-        currentUser: null,
-        allUsers: [],
-        updateInterval: null,
-        initialized: false
-    };
-
-    // ページ遷移関数（グローバルスコープに公開）
-    window.loadPage = function(url) {
-        if (typeof htmx !== 'undefined') {
-            htmx.ajax('GET', url, {
-                target: '#main-content',
-                swap: 'innerHTML',
-                pushUrl: true
-            });
-        } else {
-            window.location.href = url;
-        }
-    };
-
-    // 初期化
-    async function initDashboard() {
-        try {
-            console.log('📊 Dashboard initializing...');
-            
-            // WhaleStorageの初期化待機
-            let retryCount = 0;
-            while (!window.WhaleStorage && retryCount < 50) {
-                await new Promise(resolve => setTimeout(resolve, 100));
-                retryCount++;
-            }
-            
-            if (!window.WhaleStorage) {
-                throw new Error('WhaleStorage not available');
-            }
-
-            if (!window.WhaleStorage.initialized) {
-                console.log('⏳ Waiting for storage initialization...');
-                await window.WhaleStorage.init();
-            }
-
-            // 現在のユーザー取得
-            dashboardState.currentUser = await window.WhaleStorage.getCurrentUser();
-            if (!dashboardState.currentUser) {
-                console.warn('⚠️ No current user');
-                window.location.href = 'login.html';
-                return;
-            }
-
-            console.log('✅ Current user:', dashboardState.currentUser.name, dashboardState.currentUser.role);
-
-            // 全利用者取得
-            dashboardState.allUsers = await window.WhaleStorage.getUsers();
-            console.log('✅ All users loaded:', dashboardState.allUsers.length);
-
-            // 権限に応じてメニュー表示
-            showAdminMenus(dashboardState.currentUser.role);
-
-            // 統計データ取得
-            await loadStatistics();
-
-            // 最近の記録取得
-            await loadRecentRecords();
-
-            // データ変更監視
-            window.addEventListener('whale:datachange', async (e) => {
-                console.log('📊 Dashboard: Data change detected', e.detail);
-                await loadStatistics();
-                await loadRecentRecords();
-            });
-
-            // 定期更新（30秒ごと）
-            if (dashboardState.updateInterval) {
-                clearInterval(dashboardState.updateInterval);
-            }
-            dashboardState.updateInterval = setInterval(async () => {
-                await loadStatistics();
-                await loadRecentRecords();
-            }, 30000);
-
-            dashboardState.initialized = true;
-            console.log('✅ Dashboard initialized');
-
-        } catch (error) {
-            console.error('❌ Dashboard initialization error:', error);
-            
-            if (typeof window.showToast === 'function') {
-                window.showToast('ダッシュボードの初期化に失敗しました: ' + error.message, 'error');
-            } else {
-                alert('ダッシュボードの初期化に失敗しました: ' + error.message);
-            }
-        }
-    }
-
-    // 管理者メニュー表示
-    function showAdminMenus(userRole) {
-        const adminMenuIds = [
-            'attendance-menu',
-            'users-menu',
-            'assessments-menu',
-            'service-plans-menu'
-        ];
-
-        if (userRole === 'admin' || userRole === 'staff') {
-            console.log('✅ Showing admin menus for role:', userRole);
-            adminMenuIds.forEach(menuId => {
-                const menu = document.getElementById(menuId);
-                if (menu) {
-                    menu.style.display = 'block';
-                }
-            });
-        } else {
-            console.log('ℹ️ Hiding admin menus for role:', userRole);
-            adminMenuIds.forEach(menuId => {
-                const menu = document.getElementById(menuId);
-                if (menu) {
-                    menu.style.display = 'none';
-                }
-            });
-        }
-    }
-
-    // 統計情報取得
-    async function loadStatistics() {
-        try {
-            if (!dashboardState.currentUser) return;
-
-            const today = new Date();
-            const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-            const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-            
-            const firstDayOfWeek = new Date(today);
-            firstDayOfWeek.setDate(today.getDate() - today.getDay());
-
-            let monthRecords, weekRecords;
-
-            // 管理者・職員は全利用者のデータを表示
-            if (dashboardState.currentUser.role === 'admin' || dashboardState.currentUser.role === 'staff') {
-                console.log('📊 Loading statistics for ALL users...');
-                
-                monthRecords = await window.WhaleStorage.getAllDailyRecords(
-                    thisMonth.toISOString().split('T')[0],
-                    lastDay.toISOString().split('T')[0]
-                );
-
-                weekRecords = await window.WhaleStorage.getAllDailyRecords(
-                    firstDayOfWeek.toISOString().split('T')[0],
-                    today.toISOString().split('T')[0]
-                );
-            } else {
-                // 利用者は自分のデータのみ
-                console.log('📊 Loading statistics for current user only...');
-                
-                monthRecords = await window.WhaleStorage.getDailyRecords(
-                    dashboardState.currentUser._id,
-                    thisMonth.toISOString().split('T')[0],
-                    lastDay.toISOString().split('T')[0]
-                );
-
-                weekRecords = await window.WhaleStorage.getDailyRecords(
-                    dashboardState.currentUser._id,
-                    firstDayOfWeek.toISOString().split('T')[0],
-                    today.toISOString().split('T')[0]
-                );
-            }
-
-            // 平均気分スコア
-            const moodScores = weekRecords
-                .map(r => r.moodScore)
-                .filter(Boolean);
-            const avgMood = moodScores.length > 0
-                ? (moodScores.reduce((a, b) => a + b, 0) / moodScores.length).toFixed(1)
-                : '-';
-
-            // 平均体温
-            const temperatures = weekRecords
-                .map(r => r.temperature)
-                .filter(Boolean);
-            const avgTemp = temperatures.length > 0
-                ? (temperatures.reduce((a, b) => a + b, 0) / temperatures.length).toFixed(1)
-                : '-';
-
-            // DOM更新（要素の存在確認）
-            const monthCountEl = document.getElementById('records-count-month');
-            const weekCountEl = document.getElementById('records-count-week');
-            const avgMoodEl = document.getElementById('avg-mood');
-            const avgTempEl = document.getElementById('avg-temp');
-
-            if (monthCountEl) monthCountEl.textContent = monthRecords.length;
-            if (weekCountEl) weekCountEl.textContent = weekRecords.length;
-            if (avgMoodEl) avgMoodEl.textContent = avgMood;
-            if (avgTempEl) avgTempEl.textContent = avgTemp;
-
-        } catch (error) {
-            console.error('❌ Statistics loading error:', error);
-        }
-    }
-
-    // 最近の記録取得
-    async function loadRecentRecords() {
-        try {
-            if (!dashboardState.currentUser) return;
-
-            const container = document.getElementById('recent-records');
-            if (!container) return;
-            
-            const today = new Date();
-            const sevenDaysAgo = new Date(today);
-            sevenDaysAgo.setDate(today.getDate() - 7);
-
-            let records;
-
-            // 管理者・職員は全利用者のデータを表示
-            if (dashboardState.currentUser.role === 'admin' || dashboardState.currentUser.role === 'staff') {
-                console.log('📊 Loading recent records for ALL users...');
-                
-                records = await window.WhaleStorage.getAllDailyRecords(
-                    sevenDaysAgo.toISOString().split('T')[0],
-                    today.toISOString().split('T')[0]
-                );
-            } else {
-                // 利用者は自分のデータのみ
-                console.log('📊 Loading recent records for current user only...');
-                
-                records = await window.WhaleStorage.getDailyRecords(
-                    dashboardState.currentUser._id,
-                    sevenDaysAgo.toISOString().split('T')[0],
-                    today.toISOString().split('T')[0]
-                );
-            }
-
-            if (records.length === 0) {
-                container.innerHTML = `
-                    <div class="text-center py-8 text-gray-500">
-                        <div class="text-4xl mb-2">📝</div>
-                        <p>まだ記録がありません</p>
-                        <button onclick="loadPage('daily-record.html')" 
-                                class="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition">
-                            最初の記録を作成
-                        </button>
-                    </div>
-                `;
-                return;
-            }
-
-            // ユーザー名のマップを作成
-            const userMap = {};
-            dashboardState.allUsers.forEach(u => {
-                userMap[u._id] = u.name;
-            });
-
-            // 記録を表示
-            container.innerHTML = records.slice(0, 10).map(record => {
-                const userName = userMap[record.userId] || '不明';
-                
-                return `
-                    <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
-                        <div class="flex-1">
-                            <div class="flex items-center space-x-3">
-                                <span class="text-2xl">
-                                    ${record.moodScore >= 8 ? '😊' : record.moodScore >= 5 ? '😐' : '😔'}
-                                </span>
-                                <div>
-                                    <div class="font-medium text-gray-800">
-                                        ${userName} - ${new Date(record.recordDate).toLocaleDateString('ja-JP', {
-                                            year: 'numeric',
-                                            month: 'long',
-                                            day: 'numeric',
-                                            weekday: 'short'
-                                        })}
-                                    </div>
-                                    <div class="text-sm text-gray-600">
-                                        体温: ${record.temperature || '-'} ℃ | 
-                                        気分: ${record.moodScore || '-'} / 10
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <button onclick="viewRecordDetail('${record._id}')" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                            詳細 →
-                        </button>
-                    </div>
-                `;
-            }).join('');
-
-        } catch (error) {
-            console.error('❌ Recent records loading error:', error);
-        }
-    }
-
-    // 記録詳細表示（グローバルスコープに公開）
-    window.viewRecordDetail = async function(recordId) {
-        try {
-            const record = await window.WhaleStorage.get(recordId);
-            if (!record) {
-                if (typeof window.showToast === 'function') {
-                    window.showToast('記録が見つかりません', 'error');
-                }
-                return;
-            }
-
-            const user = dashboardState.allUsers.find(u => u._id === record.userId);
-            const userName = user ? user.name : '不明';
-
-            const modal = document.createElement('div');
-            modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4';
-            modal.innerHTML = `
-                <div class="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-bold text-gray-800">記録詳細</h3>
-                        <button onclick="this.closest('.fixed').remove()" class="text-gray-500 hover:text-gray-700">
-                            <span class="text-2xl">×</span>
-                        </button>
-                    </div>
-                    <div class="space-y-3">
-                        <div>
-                            <label class="text-sm text-gray-600">利用者</label>
-                            <div class="font-medium">${userName}</div>
-                        </div>
-                        <div>
-                            <label class="text-sm text-gray-600">日付</label>
-                            <div class="font-medium">${record.recordDate ? new Date(record.recordDate).toLocaleDateString('ja-JP') : '-'}</div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="text-sm text-gray-600">起床時間</label>
-                                <div class="font-medium">${record.wakeUpTime || '-'}</div>
-                            </div>
-                            <div>
-                                <label class="text-sm text-gray-600">就寝時間</label>
-                                <div class="font-medium">${record.sleepTime || '-'}</div>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-3 gap-4">
-                            <div>
-                                <label class="text-sm text-gray-600">朝食</label>
-                                <div class="font-medium">${record.breakfast ? '✅' : '❌'}</div>
-                            </div>
-                            <div>
-                                <label class="text-sm text-gray-600">昼食</label>
-                                <div class="font-medium">${record.lunch ? '✅' : '❌'}</div>
-                            </div>
-                            <div>
-                                <label class="text-sm text-gray-600">夕食</label>
-                                <div class="font-medium">${record.dinner ? '✅' : '❌'}</div>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="text-sm text-gray-600">体温</label>
-                                <div class="font-medium">${record.temperature ? record.temperature + '℃' : '-'}</div>
-                            </div>
-                            <div>
-                                <label class="text-sm text-gray-600">血圧</label>
-                                <div class="font-medium">${record.bloodPressureHigh && record.bloodPressureLow ? record.bloodPressureHigh + '/' + record.bloodPressureLow : '-'}</div>
-                            </div>
-                        </div>
-                        <div>
-                            <label class="text-sm text-gray-600">気分スコア</label>
-                            <div class="font-medium">${record.moodScore || '-'} / 10</div>
-                        </div>
-                        <div>
-                            <label class="text-sm text-gray-600">気分詳細</label>
-                            <div class="font-medium">${record.moodDetail || '-'}</div>
-                        </div>
-                    </div>
-                    <div class="mt-6">
-                        <button onclick="this.closest('.fixed').remove()"
-                                class="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg transition">
-                            閉じる
-                        </button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(modal);
-
-        } catch (error) {
-            console.error('❌ View record detail error:', error);
-            if (typeof window.showToast === 'function') {
-                window.showToast('記録の表示に失敗しました', 'error');
-            }
-        }
-    };
-
-    // クリーンアップ
-    window.addEventListener('beforeunload', () => {
-        if (dashboardState.updateInterval) {
-            clearInterval(dashboardState.updateInterval);
-        }
-    });
-
-    // 初期化実行
-    initDashboard();
-
-})();
-</script>
-<script type="module" src="js/app.js"></script>
-<script type="module" src="js/auth.js"></script>
-<parameter name="storage.js">
