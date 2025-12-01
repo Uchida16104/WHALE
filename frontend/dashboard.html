@@ -7,45 +7,45 @@
 
     <!-- メインメニューカード -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <button data-href="daily-record.html"
+        <button onclick="loadPage('daily-record.html')"
                 class="dashboard-nav bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left">
             <div class="text-4xl mb-3">📝</div>
             <h3 class="font-semibold text-gray-800 text-lg">日々の記録</h3>
             <p class="text-sm text-gray-600 mt-2">生活情報を記録</p>
         </button>
 
-        <button data-href="reports.html"
+        <button onclick="loadPage('reports.html')"
                 class="dashboard-nav bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left">
             <div class="text-4xl mb-3">📊</div>
             <h3 class="font-semibold text-gray-800 text-lg">レポート</h3>
             <p class="text-sm text-gray-600 mt-2">データ分析と出力</p>
         </button>
 
-        <button id="attendance-menu" data-href="attendance.html" class="dashboard-nav bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left">
+        <button id="attendance-menu" onclick="loadPage('attendance.html')" class="dashboard-nav bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left">
             <div class="text-4xl mb-3">📅</div>
             <h3 class="font-semibold text-gray-800 text-lg">出席管理</h3>
             <p class="text-sm text-gray-600 mt-2">利用者の出席記録</p>
         </button>
 
-        <button id="users-menu" data-href="users.html" class="dashboard-nav bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left">
+        <button id="users-menu" onclick="loadPage('users.html')" class="dashboard-nav bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left">
             <div class="text-4xl mb-3">👥</div>
             <h3 class="font-semibold text-gray-800 text-lg">利用者管理</h3>
             <p class="text-sm text-gray-600 mt-2">利用者情報の管理</p>
         </button>
 
-        <button id="assessments-menu" data-href="assessments.html" class="dashboard-nav bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left">
+        <button id="assessments-menu" onclick="loadPage('assessments.html')" class="dashboard-nav bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left">
             <div class="text-4xl mb-3">📋</div>
             <h3 class="font-semibold text-gray-800 text-lg">アセスメント</h3>
             <p class="text-sm text-gray-600 mt-2">評価とモニタリング</p>
         </button>
 
-        <button id="service-plans-menu" data-href="service-plans.html" class="dashboard-nav bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left">
+        <button id="service-plans-menu" onclick="loadPage('service-plans.html')" class="dashboard-nav bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left">
             <div class="text-4xl mb-3">📄</div>
             <h3 class="font-semibold text-gray-800 text-lg">サービス計画</h3>
             <p class="text-sm text-gray-600 mt-2">支援計画書の作成</p>
         </button>
 
-        <button data-href="settings.html" class="dashboard-nav bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left">
+        <button onclick="loadPage('settings.html')" class="dashboard-nav bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition transform hover:scale-105 text-left">
             <div class="text-4xl mb-3">⚙️</div>
             <h3 class="font-semibold text-gray-800 text-lg">設定</h3>
             <p class="text-sm text-gray-600 mt-2">システム設定</p>
@@ -95,7 +95,7 @@
     <div class="bg-white rounded-xl shadow-lg p-6">
         <div class="flex items-center justify-between mb-6">
             <h3 class="text-xl font-bold text-gray-800">最近の記録 (全利用者)</h3>
-            <button data-href="reports.html" class="text-blue-600 hover:text-blue-800 text-sm font-medium dashboard-nav">
+            <button onclick="loadPage('reports.html" class="text-blue-600 hover:text-blue-800 text-sm font-medium dashboard-nav">
                 すべて見る →
             </button>
         </div>
@@ -108,3 +108,8 @@
         </div>
     </div>
 </div>
+<script>
+    function loadPage(url) {
+        htmx.ajax('GET', url, { target: '#main-content', swap: 'innerHTML', pushUrl: true });
+    }
+</script>
