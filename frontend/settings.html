@@ -182,12 +182,12 @@
 </div>
 
 <script>
-    function loadPage(url) {
+    window.loadPage = function(url) {
         htmx.ajax('GET', url, { target: '#main-content', swap: 'innerHTML', pushUrl: true });
     }
 
     // 初期化
-    (async function initSettings() {
+    (window.initSettings = async function() {
         try {
             const user = await window.WhaleStorage.getCurrentUser();
             if (!user) {
@@ -220,7 +220,7 @@
         }
     })();
 
-    function loadSettings() {
+    window.loadSettings = function() {
         const settings = window.WhaleStorage.getLocal('settings') || {};
         
         document.getElementById('theme-select').value = settings.theme || 'light';
@@ -234,7 +234,7 @@
         });
     }
 
-    function saveSettings() {
+    window.saveSettings = function() {
         const settings = {
             theme: document.getElementById('theme-select').value,
             fontSize: document.getElementById('font-size-select').value,
@@ -246,7 +246,7 @@
         window.showToast('設定を保存しました', 'success');
     }
 
-    async function updateStorageInfo() {
+    window.updateStorageInfo = async function() {
         try {
             const storageInfo = window.WhaleStorage.getStorageInfo();
             
@@ -264,7 +264,7 @@
         }
     }
 
-    function updateSystemInfo() {
+    window.updateSystemInfo = function() {
         document.getElementById('system-version').textContent = window.WHALE.VERSION;
         
         const browserInfo = window.WhaleUtils.getBrowserInfo();
@@ -280,7 +280,7 @@
         }
     }
 
-    async function backupData() {
+    window.backupData = async function() {
         try {
             window.WhaleUtils.showLoading('バックアップ中...');
             await window.WhaleStorage.backup();
@@ -293,7 +293,7 @@
         }
     }
 
-    async function restoreData(input) {
+    window.restoreData = async function(input) {
         try {
             const file = input.files[0];
             if (!file) return;
@@ -322,7 +322,7 @@
         }
     }
 
-    async function cleanOldData() {
+    window.cleanOldData = async function() {
         try {
             if (!confirm('90日以前のデータを削除しますか？')) return;
 
@@ -339,7 +339,7 @@
         }
     }
 
-    async function resetAllData() {
+    window.resetAllData = async function() {
         try {
             if (!confirm('本当に全データを削除しますか？この操作は取り消せません。')) return;
             if (!confirm('最終確認: すべてのデータが完全に削除されます。よろしいですか？')) return;
@@ -359,7 +359,7 @@
         }
     }
 
-    function setupPasswordForm() {
+    window.setupPasswordForm = function() {
         const form = document.getElementById('password-form');
         
         form.addEventListener('submit', async (e) => {
