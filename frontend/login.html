@@ -123,7 +123,7 @@
         });
 
         // 🔥 安全な初期化関数
-        async function safeInit() {
+        window.safeInit = async function() {
             const loadingMsg = document.getElementById('loading-message');
             const errorDiv = document.getElementById('error-message');
             const form = document.getElementById('login-form');
@@ -223,7 +223,7 @@
             }
         }
 
-        function setupLoginForm() {
+        window.setupLoginForm = function() {
             const form = document.getElementById('login-form');
             const button = document.getElementById('login-button');
             const errorDiv = document.getElementById('error-message');
@@ -300,7 +300,7 @@
             });
         }
 
-        function showError(message) {
+        window.showError = function(message) {
             const errorDiv = document.getElementById('error-message');
             errorDiv.textContent = message;
             errorDiv.classList.remove('hidden');
