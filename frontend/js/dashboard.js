@@ -311,32 +311,98 @@
     // Minimal safe implementations for the functions that were referenced from dashboard.html
     // These avoid ReferenceError and provide simple behavior that can be extended later.
     window.showAddUserModal = window.showAddUserModal || function () {
-        alert('showAddUserModal: 実装が必要です（スタブ）');
+        document.getElementById('add-user-modal').classList.remove('hidden');
     };
 
     window.showCreateAssessmentModal = window.showCreateAssessmentModal || function () {
-        alert('showCreateAssessmentModal: 実装が必要です（スタブ）');
+        document.getElementById('create-assessment-modal').classList.remove('hidden');
+        document.querySelector('input[name="assessmentDate"]').valueAsDate = new Date();
     };
 
     window.showCreatePlanModal = window.showCreatePlanModal || function () {
-        alert('showCreatePlanModal: 実装が必要です（スタブ）');
+        document.getElementById('create-plan-modal').classList.remove('hidden');
+        const today = new Date();
+        document.querySelector('input[name="startDate"]').valueAsDate = today;
+        const endDate = new Date(today);
+        endDate.setMonth(endDate.getMonth() + 6);
+        document.querySelector('input[name="endDate"]').valueAsDate = endDate;
     };
 
     window.filterUsers = window.filterUsers || function () {
-        console.warn('filterUsers called (stub)');
+        const searchName = document.getElementById('search-name').value.toLowerCase();
+        const filterRole = document.getElementById('filter-role').value;
+
+        const filtered = allUsers.filter(user => {
+            const nameMatch = !searchName || 
+                user.name.toLowerCase().includes(searchName) || 
+                (user.nameKana && user.nameKana.toLowerCase().includes(searchName));
+            const roleMatch = !filterRole || user.role === filterRole;
+            return nameMatch && roleMatch;
+        });
+
+        displayUsers(filtered);
     };
 
     window.filterAssessments = window.filterAssessments || function () {
-        console.warn('filterAssessments called (stub)');
+        const filterUserId = document.getElementById('filter-user').value;
+
+        const filtered = filterUserId
+            ? allAssessments.filter(a => a.userId === filterUserId)
+            : allAssessments;
+
+        displayAssessments(filtered);
     };
 
     window.filterPlans = window.filterPlans || function () {
-        console.warn('filterPlans called (stub)');
+        const filterUserId = document.getElementById('filter-user').value;
+
+        const filtered = filterUserId
+            ? allPlans.filter(p => p.userId === filterUserId)
+            : allPlans;
+
+        displayPlans(filtered);
     };
 
     // Reports / exports
     window.loadReportData = window.loadReportData || async function () {
-        console.warn('loadReportData called (stub)');
+        try {
+            if (!currentUser) return;
+
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
+
+            if (!startDate || !endDate) {
+                window.showToast('期間を選択してください', 'warning');
+                return;
+            }
+
+            // 🔥 管理者・職員は全利用者のデータを表示
+            if (currentUser.role === 'admin' || currentUser.role === 'staff') {
+                console.log('📊 Loading report data for ALL users...');
+                currentRecords = await window.WhaleStorage.getAllDailyRecords(startDate, endDate);
+            } else {
+                // 利用者は自分のデータのみ
+                console.log('📊 Loading report data for current user only...');
+                currentRecords = await window.WhaleStorage.getDailyRecords(currentUser._id, startDate, endDate);
+            }
+
+            console.log('✅ Loaded', currentRecords.length, 'records');
+
+            // 統計計算
+            updateStatistics(currentRecords);
+
+            // グラフ更新
+            updateCharts(currentRecords);
+
+            // テーブル更新
+            updateTable(currentRecords);
+
+            window.showToast('データを読み込みました', 'success');
+
+        } catch (error) {
+            console.error('Load report data error:', error);
+            window.showToast('データ読み込みエラー: ' + error.message, 'error');
+        }
     };
 
     window.exportCSV = window.exportCSV || async function (type = 'daily_records') {
