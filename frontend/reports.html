@@ -110,7 +110,7 @@
 </div>
 
 <script>
-    function loadPage(url) {
+    window.loadPage = function(url) {
         htmx.ajax('GET', url, { target: '#main-content', swap: 'innerHTML', pushUrl: true });
     }
 
@@ -120,7 +120,7 @@
     let moodChart = null;
     let tempChart = null;
 
-    (async function initReports() {
+    (window.initReports = async function() {
         try {
             currentUser = await window.WhaleStorage.getCurrentUser();
             if (!currentUser) {
@@ -158,7 +158,7 @@
         }
     })();
 
-    async function loadReportData() {
+    window.loadReportData = async function() {
         try {
             if (!currentUser) return;
 
@@ -199,7 +199,7 @@
         }
     }
 
-    function updateStatistics(records) {
+    window.updateStatistics = function(records) {
         const total = records.length;
         const temperatures = records.map(r => r.temperature).filter(Boolean);
         const moodScores = records.map(r => r.moodScore).filter(Boolean);
@@ -217,7 +217,7 @@
             : '-';
     }
 
-    function updateCharts(records) {
+    window.updateCharts = function(records) {
         const sortedRecords = [...records].sort((a, b) => 
             new Date(a.recordDate) - new Date(b.recordDate)
         );
@@ -285,7 +285,7 @@
         });
     }
 
-    function updateTable(records) {
+    window.updateTable = function(records) {
         const tbody = document.getElementById('records-tbody');
         
         if (records.length === 0) {
@@ -317,7 +317,7 @@
     }
 
     // 🔥 CSV専用エクスポート
-    async function exportCSV() {
+    window.exportCSV = async function() {
         try {
             if (currentRecords.length === 0) {
                 window.showToast('エクスポートするデータがありません', 'warning');
@@ -342,7 +342,7 @@
     }
 
     // JSONバックアップ (システム全体のバックアップ)
-    async function exportJSON() {
+    window.exportJSON = async function() {
         try {
             document.getElementById('btn-json').disabled = true;
             document.getElementById('btn-json').textContent = '処理中...';
