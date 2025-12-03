@@ -152,7 +152,7 @@ self.addEventListener('sync', (event) => {
     }
 });
 
-async function syncData() {
+window.syncData = async function() {
     console.log('🔄 Background sync started');
     try {
         const clients = await self.clients.matchAll();
