@@ -47,14 +47,14 @@
 </div>
 
 <script>
-    function loadPage(url) {
+    window.loadPage = function(url) {
         htmx.ajax('GET', url, { target: '#main-content', swap: 'innerHTML', pushUrl: true });
     }
 
     let attendanceData = {};
     let currentDate = new Date();
 
-    (async function initAttendance() {
+    (window.initAttendance = async function() {
         try {
             const currentUser = await window.WhaleStorage.getCurrentUser();
             if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'staff')) {
@@ -80,19 +80,19 @@
         }
     })();
 
-    function setToday() {
+    window.setToday = function() {
         currentDate = new Date();
         document.getElementById('attendance-date').valueAsDate = currentDate;
         loadAttendance();
     }
 
-    function changeDate(days) {
+    window.changeDate = function(days) {
         currentDate.setDate(currentDate.getDate() + days);
         document.getElementById('attendance-date').valueAsDate = currentDate;
         loadAttendance();
     }
 
-    async function loadAttendance() {
+    window.loadAttendance = async function() {
         try {
             const dateInput = document.getElementById('attendance-date');
             currentDate = dateInput.valueAsDate || new Date();
@@ -124,7 +124,7 @@
         }
     }
 
-    function displayAttendance() {
+    window.displayAttendance = function() {
         const container = document.getElementById('attendance-list');
         const users = Object.values(attendanceData);
 
@@ -167,12 +167,12 @@
         `).join('');
     }
 
-    function togglePresence(userId) {
+    window.togglePresence = function(userId) {
         attendanceData[userId].present = !attendanceData[userId].present;
         displayAttendance();
     }
 
-    function updateTime(userId, type, value) {
+    window.updateTime = function(userId, type, value) {
         if (type === 'arrival') {
             attendanceData[userId].arrivalTime = value;
         } else {
@@ -180,7 +180,7 @@
         }
     }
 
-    async function saveAttendance() {
+    window.saveAttendance = async function() {
         try {
             const dateStr = currentDate.toISOString().split('T')[0];
 
