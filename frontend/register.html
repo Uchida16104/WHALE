@@ -255,7 +255,7 @@
             showError('モジュールの読み込みに失敗しました: ' + error.message);
         });
 
-        async function initRegisterPage() {
+        window.initRegisterPage = async function() {
             console.log('🐋 Register page initializing (v2.5.0)...');
 
             const loadingMsg = document.getElementById('loading-message');
@@ -319,7 +319,7 @@
             }
         }
 
-        function setupRegisterForm() {
+        window.setupRegisterForm = function() {
             const form = document.getElementById('register-form');
             const button = document.getElementById('register-button');
             const password = document.getElementById('password');
@@ -394,7 +394,7 @@
             });
         }
 
-        function showError(message) {
+        window.showError = function(message) {
             const errorDiv = document.getElementById('error-message');
             errorDiv.textContent = message;
             errorDiv.classList.remove('hidden');
