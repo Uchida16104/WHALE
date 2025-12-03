@@ -179,20 +179,20 @@
         });
 
         // アプリ表示
-        function showApp() {
+        window.showApp = function() {
             document.getElementById('app-container').classList.remove('hidden');
             document.getElementById('main-nav').classList.remove('hidden');
         }
 
         // ローディング非表示
-        function hideLoading() {
+        window.hideLoading = function() {
             const loading = document.getElementById('loading-screen');
             loading.classList.add('hidden');
             setTimeout(() => loading.remove(), 500);
         }
 
         // ユーザー情報読み込み
-        async function loadUserInfo() {
+        window.loadUserInfo = async function() {
             try {
                 const user = await window.WhaleStorage.getCurrentUser();
                 const org = await window.WhaleStorage.getOrganization(user.organizationId);
@@ -212,7 +212,7 @@
         }
 
         // ログアウト
-        async function handleLogout() {
+        window.handleLogout = async function() {
             if (!confirm('ログアウトしますか?')) return;
             
             try {
@@ -225,7 +225,7 @@
         }
 
         // トースト通知
-        function showToast(message, type = 'info') {
+        window.showToast = function(message, type = 'info') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
             
