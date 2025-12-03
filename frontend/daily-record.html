@@ -154,14 +154,14 @@
 </div>
 
 <script>
-    function loadPage(url) {
+    window.loadPage = function(url) {
         htmx.ajax('GET', url, { target: '#main-content', swap: 'innerHTML', pushUrl: true });
     }
 
     let currentRecordId = null;
     let autoSaveInterval = null;
 
-    (async function initDailyRecord() {
+    (window.initDailyRecord = async function() {
         try {
             const user = await window.WhaleStorage.getCurrentUser();
             if (!user) {
@@ -225,7 +225,7 @@
         }
     });
 
-    function loadRecordData(record) {
+    window.loadRecordData = function(record) {
         const form = document.getElementById('daily-record-form');
         Object.keys(record).forEach(key => {
             const input = form.elements[key];
@@ -245,7 +245,7 @@
         }
     }
 
-    function setupFormSubmit(user) {
+    window.setupFormSubmit = function(user) {
         const form = document.getElementById('daily-record-form');
         const button = document.getElementById('save-button');
         const successDiv = document.getElementById('success-message');
@@ -293,7 +293,7 @@
         });
     }
 
-    async function autoSave(user) {
+    window.autoSave = async function(user) {
         try {
             const form = document.getElementById('daily-record-form');
             const formData = new FormData(form);
