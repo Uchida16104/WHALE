@@ -228,14 +228,14 @@
 </div>
 
 <script>
-    function loadPage(url) {
+    window.loadPage = function(url) {
         htmx.ajax('GET', url, { target: '#main-content', swap: 'innerHTML', pushUrl: true });
     }
 
     let allUsers = [];
     let currentEditingUser = null;
 
-    (async function initUsers() {
+    (window.initUsers = async function() {
         try {
             const currentUser = await window.WhaleStorage.getCurrentUser();
             if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'staff')) {
@@ -258,7 +258,7 @@
         }
     })();
 
-    async function loadUsers() {
+    window.loadUsers = async function() {
         try {
             const users = await window.WhaleStorage.getUsers();
             allUsers = users;
@@ -269,7 +269,7 @@
         }
     }
 
-    function displayUsers(users) {
+    window.displayUsers = function(users) {
         const tbody = document.getElementById('users-tbody');
         
         if (users.length === 0) {
@@ -304,7 +304,7 @@
         `).join('');
     }
 
-    function filterUsers() {
+    window.filterUsers = function() {
         const searchName = document.getElementById('search-name').value.toLowerCase();
         const filterRole = document.getElementById('filter-role').value;
 
@@ -319,16 +319,16 @@
         displayUsers(filtered);
     }
 
-    function showAddUserModal() {
+    window.showAddUserModal = function() {
         document.getElementById('add-user-modal').classList.remove('hidden');
     }
 
-    function closeAddUserModal() {
+    window.closeAddUserModal = function() {
         document.getElementById('add-user-modal').classList.add('hidden');
         document.getElementById('add-user-form').reset();
     }
 
-    async function handleAddUser(e) {
+    window.handleAddUser = async function(e) {
         e.preventDefault();
 
         try {
@@ -356,7 +356,7 @@
         }
     }
 
-    function viewUser(userId) {
+    window.viewUser = function(userId) {
         const user = allUsers.find(u => u._id === userId);
         if (!user) return;
 
@@ -407,11 +407,11 @@
         document.getElementById('view-user-modal').classList.remove('hidden');
     }
 
-    function closeViewUserModal() {
+    window.closeViewUserModal = function() {
         document.getElementById('view-user-modal').classList.add('hidden');
     }
 
-    function editUser(userId) {
+    window.editUser = function(userId) {
         const user = allUsers.find(u => u._id === userId);
         if (!user) return;
 
@@ -427,13 +427,13 @@
         document.getElementById('edit-user-modal').classList.remove('hidden');
     }
 
-    function closeEditUserModal() {
+    window.closeEditUserModal = function() {
         document.getElementById('edit-user-modal').classList.add('hidden');
         document.getElementById('edit-user-form').reset();
         currentEditingUser = null;
     }
 
-    async function handleEditUser(e) {
+    window.handleEditUser = async function(e) {
         e.preventDefault();
 
         if (!currentEditingUser) return;
