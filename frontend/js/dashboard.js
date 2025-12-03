@@ -20,7 +20,7 @@
     /**
      * initDashboard - safe to call multiple times (idempotent)
      */
-    async function initDashboard() {
+    window.initDashboard = async function() {
         // guard: don't run more than once per 500ms and don't double-init
         const now = Date.now();
         if (state.initialized && (now - state.lastInitAt) < 500) {
@@ -97,7 +97,7 @@
     }
 
     // Helper to call functions and catch errors
-    async function safeCall(fn) {
+    window.safeCall = async function(fn) {
         try {
             await fn();
         } catch (e) {
@@ -106,7 +106,7 @@
     }
 
     // Attach navigation handlers to elements with .dashboard-nav
-    function attachNavigationHandlers() {
+    window.attachNavigationHandlers = function() {
         document.querySelectorAll('.dashboard-nav').forEach(btn => {
             // avoid double-binding
             if (btn.dataset._navBound === '1') return;
@@ -123,7 +123,7 @@
     }
 
     // show/hide admin menus
-    function showAdminMenus(role) {
+    window.showAdminMenus = function(role) {
         const adminMenuIds = ['attendance-menu', 'users-menu', 'assessments-menu', 'service-plans-menu'];
         adminMenuIds.forEach(id => {
             const el = document.getElementById(id);
@@ -137,7 +137,7 @@
     }
 
     // loadStatistics: safe DOM checks and defensive coding
-    async function loadStatistics() {
+    window.loadStatistics = async function() {
         if (!state.currentUser) return;
 
         try {
@@ -181,7 +181,7 @@
     }
 
     // loadRecentRecords: safe DOM checks
-    async function loadRecentRecords() {
+    window.loadRecentRecords = async function() {
         if (!state.currentUser) return;
 
         try {
