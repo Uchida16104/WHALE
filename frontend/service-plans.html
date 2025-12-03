@@ -181,7 +181,7 @@
 </div>
 
 <script>
-    function loadPage(url) {
+    window.loadPage = function(url) {
         htmx.ajax('GET', url, { target: '#main-content', swap: 'innerHTML', pushUrl: true });
     }
 
@@ -189,7 +189,7 @@
     let allUsers = [];
     let currentViewingPlanId = null;
 
-    (async function initServicePlans() {
+    (window.initServicePlans = async function() {
         try {
             const currentUser = await window.WhaleStorage.getCurrentUser();
             if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'staff')) {
@@ -232,7 +232,7 @@
         }
     })();
 
-    async function loadPlans() {
+    window.loadPlans = async function() {
         try {
             const plans = await window.WhaleStorage.getServicePlans();
             allPlans = plans;
@@ -243,7 +243,7 @@
         }
     }
 
-    function displayPlans(plans) {
+    window.displayPlans = function(plans) {
         const container = document.getElementById('plans-list');
 
         if (plans.length === 0) {
@@ -276,7 +276,7 @@
         }).join('');
     }
 
-    function filterPlans() {
+    window.filterPlans = function() {
         const filterUserId = document.getElementById('filter-user').value;
 
         const filtered = filterUserId
@@ -286,7 +286,7 @@
         displayPlans(filtered);
     }
 
-    function showCreatePlanModal() {
+    window.showCreatePlanModal = function() {
         document.getElementById('create-plan-modal').classList.remove('hidden');
         const today = new Date();
         document.querySelector('input[name="startDate"]').valueAsDate = today;
@@ -295,12 +295,12 @@
         document.querySelector('input[name="endDate"]').valueAsDate = endDate;
     }
 
-    function closeCreatePlanModal() {
+    window.closeCreatePlanModal = function() {
         document.getElementById('create-plan-modal').classList.add('hidden');
         document.getElementById('create-plan-form').reset();
     }
 
-    async function handleCreatePlan(e) {
+    window.handleCreatePlan = async function(e) {
         e.preventDefault();
 
         try {
@@ -329,7 +329,7 @@
         }
     }
 
-    function viewPlan(planId) {
+    window.viewPlan = function(planId) {
         const plan = allPlans.find(p => p._id === planId);
         if (!plan) return;
 
@@ -390,12 +390,12 @@
         document.getElementById('view-plan-modal').classList.remove('hidden');
     }
 
-    function closeViewPlanModal() {
+    window.closeViewPlanModal = function() {
         document.getElementById('view-plan-modal').classList.add('hidden');
         currentViewingPlanId = null;
     }
 
-    async function printCurrentPlan() {
+    window.printCurrentPlan = async function() {
         if (!currentViewingPlanId) {
             window.showToast('印刷するサービス計画が選択されていません', 'error');
             return;
@@ -409,7 +409,7 @@
         }
     }
         // 🔥 CSV専用エクスポート
-    async function exportCSV() {
+    window.exportCSV = async function() {
         try {
             if (currentRecords.length === 0) {
                 window.showToast('エクスポートするデータがありません', 'warning');
@@ -434,7 +434,7 @@
     }
 
     // JSONバックアップ (システム全体のバックアップ)
-    async function exportJSON() {
+    window.exportJSON = async function() {
         try {
             document.getElementById('btn-json').disabled = true;
             document.getElementById('btn-json').textContent = '処理中...';
